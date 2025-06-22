@@ -503,7 +503,8 @@ class PathfinderCLI:
             print("\n=== Monster Database Management ===")
             print("1. List Monsters")
             print("2. Delete Monster")
-            print("3. Back to Main Menu")
+            print("3. Download Monster from PMD")
+            print("4. Back to Main Menu")
             
             choice = input("Choice: ").strip()
             
@@ -512,10 +513,33 @@ class PathfinderCLI:
             elif choice == "2":
                 self.delete_monster()
             elif choice == "3":
+                self.download_monster_via_pmd()
+            elif choice == "4":
                 break
             else:
                 print("Invalid choice.")
     
+    def download_monster_via_pmd(self):
+        """Download a monster from PMD"""
+        monster_name = input("\nEnter monster name to download: ").strip()
+        if not monster_name:
+            print("Invalid name.")
+            return
+        
+        from pmd_integration import create_pmd_integrator
+        integrator = create_pmd_integrator()
+        
+        try:
+            combatant = integrator.get_or_download_monster(monster_name)
+            if combatant:
+                # Save to database
+                self.db.save_monster(combatant)
+                print(f"\nSuccessfully downloaded and saved {monster_name}!")
+            else:
+                print(f"\nFailed to download {monster_name}")
+        except Exception as e:
+            print(f"\nError downloading monster: {str(e)}")
+
     def delete_monster(self):
         """Delete a monster from the database"""
         monsters = self.db.list_monsters()
