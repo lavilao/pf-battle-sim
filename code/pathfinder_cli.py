@@ -381,8 +381,10 @@ class PathfinderCLI:
             has_pcs = any(c.is_pc for c in alive_combatants)
             has_monsters = any(not c.is_pc for c in alive_combatants)
             
-            # Combat ends when only one side (PCs or monsters) remains
-            if not (has_pcs and has_monsters):
+            # Combat ends when either:
+            # 1. PCs are all that remain, or 
+            # 2. Only 0-1 combatants remain (for monster vs monster)
+            if (has_pcs and not has_monsters) or (len(alive_combatants) <= 1):
                 self.combat.end_combat()
                 print("\n=== COMBAT ENDS ===")
                 self.print_final_combat_status()
