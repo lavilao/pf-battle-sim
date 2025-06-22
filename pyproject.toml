@@ -1,0 +1,31 @@
+[project]
+name = "pathfinder-combat-simulator"
+version = "0.1.0"
+description = "Pathfinder 1e Combat Simulator with proper Pathfinder rules implementation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.26.0",
+    "beautifulsoup4>=4.10.0",
+    "regex>=2021.11.10",
+    "tqdm>=4.62.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+pathfinder-simulator = "pathfinder_simulator.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
