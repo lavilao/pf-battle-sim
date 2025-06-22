@@ -376,12 +376,13 @@ class PathfinderCLI:
             else:
                 self.handle_npc_turn(current_combatant)
             
-            # Check if any side has been defeated
+            # Check if combat should end
             alive_combatants = [c for c in self.combat.combatants if c.current_hp > 0]
-            factions = set(c.is_pc for c in alive_combatants)
+            has_pcs = any(c.is_pc for c in alive_combatants)
+            has_monsters = any(not c.is_pc for c in alive_combatants)
             
-            # Combat ends when only one faction remains
-            if len(factions) <= 1:
+            # Combat ends when only one side (PCs or monsters) remains
+            if not (has_pcs and has_monsters):
                 self.combat.end_combat()
                 print("\n=== COMBAT ENDS ===")
                 self.print_final_combat_status()
