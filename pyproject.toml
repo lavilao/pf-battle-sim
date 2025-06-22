@@ -26,7 +26,7 @@ dev = [
 ]
 
 [project.scripts]
-pathfinder-simulator = "pathfinder_simulator.main:main"
+pathfinder-simulator = "pathfinder_combat_simulator.main:main"
 
 [build-system]
 requires = ["hatchling"]
