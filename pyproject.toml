@@ -1,9 +1,17 @@
 [project]
-name = "pathfinder-combat-simulator"
+name = "pathfinder_combat_simulator"
 version = "0.1.0"
-description = "Pathfinder 1e Combat Simulator with proper Pathfinder rules implementation"
+description = "Pathfinder 1st Edition Combat Simulator with proper Pathfinder rules implementation"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+  { name="Example Author", email="author@example.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "requests>=2.26.0",
     "beautifulsoup4>=4.10.0",
