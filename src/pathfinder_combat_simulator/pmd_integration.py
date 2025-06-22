@@ -27,7 +27,6 @@ from urllib.parse import quote
 sys.path.append('/home/lavilao570/pf/pmd')
 
 # Import PMD modules
-from main import parsePage
 from pathfinder_simulator import Combatant, MonsterDatabase, DamageType
 
 
@@ -388,11 +387,8 @@ class PMDIntegrator:
         """Parse monster HTML using PMD's parser"""
         try:
             # Set up global variables that PMD parser expects
-            import main
-            main.class_hds = self.class_hds
-            main.classname_map = {name.lower(): name for name in self.class_hds}
-            
-            # Parse the HTML
+            # Parse the HTML using PMD's parser
+            from pmd.main import parsePage
             pmd_data = parsePage(html, url)
             return pmd_data
         except Exception as e:
