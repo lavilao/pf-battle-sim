@@ -29,25 +29,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[project]
-name = "pathfinder_combat_simulator"
-version = "0.1.0"
-authors = [
-  { name="Example Author", email="author@example.com" },
-]
-description = "Pathfinder 1st Edition Combat Simulator"
-readme = "README.md"
-requires-python = ">=3.8"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
-dynamic = ["dependencies"]
 
 [tool.hatch.build]
 include = [
