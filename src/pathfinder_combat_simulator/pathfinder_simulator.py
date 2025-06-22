@@ -48,6 +48,12 @@ class DamageType(Enum):
     SONIC = "sonic"
     FORCE = "force"
 
+class ACType(Enum):
+    """Armor class types"""
+    STANDARD = "standard"
+    TOUCH = "touch"
+    FLAT_FOOTED = "flat_footed"
+
 
 @dataclass
 class Attack:
@@ -163,31 +169,30 @@ class ArmorClass:
     max_dex_bonus_from_armor: Optional[int] = None
     
     def calculate_ac(self, dex_modifier: int, is_flat_footed: bool = False) -> int:
-        """Calculate total AC"""
-        effective_dex = dex_modifier
+        """Calculate total AC following Pathfinder rules"""
+        effective_dex = min(dex_modifier, self.max_dex_bonus_from_armor or dex_modifier)
         if is_flat_footed:
             effective_dex = 0
-        elif self.max_dex_bonus_from_armor is not None:
-            effective_dex = min(effective_dex, self.max_dex_bonus_from_armor)
-        
-        return (10 + self.armor_bonus + self.shield_bonus + effective_dex + 
-                self.natural_armor_bonus + self.deflection_bonus + 
-                self.dodge_bonus + self.size_modifier)
+            
+        return (10 + self.armor_bonus + self.shield_bonus + 
+               self.natural_armor_bonus + effective_dex +
+               self.size_modifier + self.deflection_bonus + 
+               self.dodge_bonus)
     
     def calculate_touch_ac(self, dex_modifier: int, is_flat_footed: bool = False) -> int:
-        """Calculate touch AC (no armor, shield, or natural armor)"""
-        effective_dex = dex_modifier
+        """Calculate touch AC (ignores armor, shield, and natural armor)"""
+        effective_dex = min(dex_modifier, self.max_dex_bonus_from_armor or dex_modifier)
         if is_flat_footed:
             effective_dex = 0
-        elif self.max_dex_bonus_from_armor is not None:
-            effective_dex = min(effective_dex, self.max_dex_bonus_from_armor)
-        
-        return (10 + effective_dex + self.deflection_bonus + 
-                self.dodge_bonus + self.size_modifier)
+            
+        return (10 + effective_dex + self.size_modifier +
+               self.deflection_bonus + self.dodge_bonus)
     
     def calculate_flat_footed_ac(self, dex_modifier: int) -> int:
-        """Calculate flat-footed AC (no dex bonus)"""
-        return self.calculate_ac(dex_modifier, is_flat_footed=True)
+        """Calculate flat-footed AC (loses Dex bonus, retains other bonuses)"""
+        return (10 + self.armor_bonus + self.shield_bonus +
+               self.natural_armor_bonus + self.size_modifier +
+               self.deflection_bonus + self.dodge_bonus)
 
 
 @dataclass
@@ -342,17 +347,20 @@ class Combatant:
         return base_cmd
     
     def get_ac(self, ac_type: str = "standard") -> int:
-        """Get armor class of specified type"""
+        """Get armor class of specified type with proper size modifiers"""
         dex_mod = self.ability_scores.get_modifier("dexterity")
+        size_mod = self.get_size_modifier()
         
-        if ac_type == "standard":
-            return self.armor_class.calculate_ac(dex_mod, self.is_flat_footed)
-        elif ac_type == "touch":
-            return self.armor_class.calculate_touch_ac(dex_mod, self.is_flat_footed)
+        # Apply size modifier to AC (Pathfinder rules)
+        if ac_type == "touch":
+            base_ac = self.armor_class.calculate_touch_ac(dex_mod, self.is_flat_footed)
+            return base_ac + size_mod
         elif ac_type == "flat_footed":
-            return self.armor_class.calculate_flat_footed_ac(dex_mod)
-        else:
-            return self.armor_class.calculate_ac(dex_mod, self.is_flat_footed)
+            base_ac = self.armor_class.calculate_flat_footed_ac(dex_mod)
+            return base_ac + size_mod
+        else:  # standard AC
+            base_ac = self.armor_class.calculate_ac(dex_mod, self.is_flat_footed)
+            return base_ac + size_mod
     
     def get_attack_bonus(self, attack: Attack, is_full_attack: bool = False, 
                         attack_number: int = 0) -> int:

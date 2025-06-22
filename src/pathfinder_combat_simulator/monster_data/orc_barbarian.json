@@ -1,0 +1,57 @@
+{
+  "name": "Orc Barbarian",
+  "is_pc": false,
+  "max_hp": 15,
+  "ability_scores": {
+    "strength": 19,
+    "dexterity": 12,
+    "constitution": 15,
+    "intelligence": 8,
+    "wisdom": 11,
+    "charisma": 8
+  },
+  "base_attack_bonus": 2,
+  "armor_class": {
+    "armor_bonus": 4,
+    "shield_bonus": 1,
+    "natural_armor_bonus": 0,
+    "deflection_bonus": 0,
+    "dodge_bonus": 0,
+    "size_modifier": 0,
+    "max_dex_bonus_from_armor": null
+  },
+  "saving_throws": {
+    "fortitude_base": 3,
+    "reflex_base": 0,
+    "will_base": 0
+  },
+  "base_speed": 30,
+  "size": "Medium",
+  "creature_type": "Humanoid",
+  "subtypes": [
+    "Orc"
+  ],
+  "alignment": "Chaotic Evil",
+  "skills": {},
+  "feats": [],
+  "attacks": [
+    {
+      "name": "Greataxe",
+      "damage_dice": "1d12",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x3",
+      "damage_type": "slashing",
+      "reach": 5,
+      "associated_ability_for_attack": "str",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": true,
+      "special_qualities": [],
+      "enhancement_bonus": 0
+    }
+  ],
+  "damage_reduction": {},
+  "spell_resistance": 0,
+  "energy_resistances": {},
+  "energy_immunities": [],
+  "energy_vulnerabilities": []
+}

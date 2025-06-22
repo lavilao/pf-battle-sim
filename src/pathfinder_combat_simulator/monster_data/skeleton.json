@@ -1,0 +1,58 @@
+{
+  "name": "Skeleton",
+  "is_pc": false,
+  "max_hp": 4,
+  "ability_scores": {
+    "strength": 15,
+    "dexterity": 14,
+    "constitution": 10,
+    "intelligence": 10,
+    "wisdom": 10,
+    "charisma": 10
+  },
+  "base_attack_bonus": 1,
+  "armor_class": {
+    "armor_bonus": 0,
+    "shield_bonus": 0,
+    "natural_armor_bonus": 2,
+    "deflection_bonus": 0,
+    "dodge_bonus": 0,
+    "size_modifier": 0,
+    "max_dex_bonus_from_armor": null
+  },
+  "saving_throws": {
+    "fortitude_base": 0,
+    "reflex_base": 2,
+    "will_base": 2
+  },
+  "base_speed": 30,
+  "size": "Medium",
+  "creature_type": "Undead",
+  "subtypes": [],
+  "alignment": "Neutral Evil",
+  "skills": {},
+  "feats": [],
+  "attacks": [
+    {
+      "name": "Claw",
+      "damage_dice": "1d4",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x2",
+      "damage_type": "slashing",
+      "reach": 5,
+      "associated_ability_for_attack": "str",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": true,
+      "special_qualities": [],
+      "enhancement_bonus": 0
+    }
+  ],
+  "damage_reduction": {
+    "amount": 5,
+    "type": "bludgeoning"
+  },
+  "spell_resistance": 0,
+  "energy_resistances": {},
+  "energy_immunities": [],
+  "energy_vulnerabilities": []
+}

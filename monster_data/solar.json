@@ -1,0 +1,120 @@
+{
+  "name": "Solar",
+  "is_pc": false,
+  "max_hp": 363,
+  "ability_scores": {
+    "strength": 28,
+    "dexterity": 20,
+    "constitution": 30,
+    "intelligence": 23,
+    "wisdom": 27,
+    "charisma": 25
+  },
+  "base_attack_bonus": 22,
+  "armor_class": {
+    "armor_bonus": 14,
+    "shield_bonus": 0,
+    "natural_armor_bonus": 19,
+    "deflection_bonus": 0,
+    "dodge_bonus": 1,
+    "size_modifier": -1,
+    "max_dex_bonus_from_armor": null
+  },
+  "saving_throws": {
+    "fortitude_base": 25,
+    "reflex_base": 14,
+    "will_base": 23
+  },
+  "base_speed": 50,
+  "size": "Large",
+  "creature_type": "Outsider",
+  "subtypes": [
+    "angel",
+    "extraplanar",
+    "good"
+  ],
+  "alignment": "NG",
+  "skills": {
+    "Craft (any one)": 31,
+    "Diplomacy": 32,
+    "Fly": 32,
+    "Knowledge (history)": 31,
+    "Knowledge (nature)": 31,
+    "Knowledge (planes)": 31,
+    "Knowledge (religion)": 31,
+    "Perception": 33,
+    "Sense Motive": 33,
+    "Spellcraft": 31,
+    "Stealth": 21,
+    "Survival": 31
+  },
+  "feats": [
+    "Cleave",
+    "Deadly Aim",
+    "Dodge",
+    "Great Fortitude",
+    "Improved Initiative",
+    "Improved Sunder",
+    "Iron Will",
+    "Lightning Reflexes",
+    "Mobility",
+    "Power Attack",
+    "Toughness"
+  ],
+  "attacks": [
+    {
+      "name": "+5 dancing greatsword",
+      "damage_dice": "3d6",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x2",
+      "damage_type": "bludgeoning",
+      "reach": 5,
+      "associated_ability_for_attack": "str",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": true,
+      "special_qualities": [],
+      "enhancement_bonus": 0
+    },
+    {
+      "name": "Slam",
+      "damage_dice": "2d8",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x2",
+      "damage_type": "bludgeoning",
+      "reach": 5,
+      "associated_ability_for_attack": "str",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": true,
+      "special_qualities": [],
+      "enhancement_bonus": 0
+    },
+    {
+      "name": "+5 composite longbow (+9 str bonus)",
+      "damage_dice": "2d6",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x2",
+      "damage_type": "bludgeoning",
+      "reach": 5,
+      "associated_ability_for_attack": "str",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": true,
+      "special_qualities": [],
+      "enhancement_bonus": 0
+    }
+  ],
+  "damage_reduction": {
+    "amount": 15,
+    "type": "epic and evil"
+  },
+  "spell_resistance": 34,
+  "energy_resistances": {
+    "electricity": 10,
+    "fire": 10
+  },
+  "energy_immunities": [
+    "acid",
+    "cold",
+    "petrification"
+  ],
+  "energy_vulnerabilities": []
+}
