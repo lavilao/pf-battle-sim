@@ -367,6 +367,7 @@ class PathfinderCLI:
         while self.combat.combat_active:
             current_combatant = self.combat.get_current_combatant()
             if not current_combatant or current_combatant.current_hp <= 0:
+                # Remove unconscious/dead combatants from initiative order
                 self.combat.advance_turn()
                 continue
             
@@ -375,11 +376,18 @@ class PathfinderCLI:
             else:
                 self.handle_npc_turn(current_combatant)
             
-            self.combat.advance_turn()
+            # Check if any side has been defeated
+            alive_combatants = [c for c in self.combat.combatants if c.current_hp > 0]
+            factions = set(c.is_pc for c in alive_combatants)
             
-            if self.combat.is_combat_over():
+            # Combat ends when only one faction remains
+            if len(factions) <= 1:
                 self.combat.end_combat()
+                print("\n=== COMBAT ENDS ===")
+                self.print_final_combat_status()
                 break
+            
+            self.combat.advance_turn()
             
             # Pause between turns for readability
             input("\nPress Enter to continue...")
@@ -471,6 +479,13 @@ class PathfinderCLI:
         except (ValueError, IndexError):
             print("Invalid input.")
             return False
+    
+    def print_final_combat_status(self):
+        """Print final status of all combatants"""
+        print("\nFinal Status:")
+        for combatant in self.combat.combatants:
+            status = "DEAD" if combatant.current_hp <= 0 else f"{combatant.current_hp}/{combatant.max_hp} HP"
+            print(f"{combatant.name}: {status}")
     
     def print_combat_status(self, combatant: Combatant):
         """Print current combat status for a combatant"""
