@@ -13,11 +13,11 @@ from unittest.mock import patch, MagicMock, mock_open
 from pathlib import Path
 
 # Import the modules we'll be testing
-import sys
-sys.path.append('/home/lavilao570/pf/code')
-sys.path.append('/home/lavilao570/pf/pmd')
-
-from pathfinder_simulator import Combatant, MonsterDatabase
+# Assuming tests are run from the root directory where `src` is visible,
+# or pytest handles path resolution for the src layout.
+from pathfinder_combat_simulator import Combatant, MonsterDatabase
+from pathfinder_combat_simulator.pmd_integration import PMDIntegrator, PMDDataConverter # PMDDataConverter might be needed for some tests if they were using it directly from pmd_integration
+from pathfinder_combat_simulator.enhanced_monster_database import EnhancedMonsterDatabase
 
 
 class TestPMDIntegration(unittest.TestCase):
@@ -26,7 +26,8 @@ class TestPMDIntegration(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.test_dir = tempfile.mkdtemp()
-        self.monster_db = MonsterDatabase(self.test_dir)
+        # Use MonsterDatabase from the package for consistency in tests
+        self.monster_db = MonsterDatabase(database_path=self.test_dir)
         
     def tearDown(self):
         """Clean up test fixtures"""
@@ -34,8 +35,7 @@ class TestPMDIntegration(unittest.TestCase):
     
     def test_download_monster_url_list_generation(self):
         """Test that we can generate proper URLs for monster downloads"""
-        from pmd_integration import PMDIntegrator
-        
+        # PMDIntegrator is now imported at the module level
         integrator = PMDIntegrator(self.test_dir)
         
         # Test various monster name formats
@@ -53,8 +53,7 @@ class TestPMDIntegration(unittest.TestCase):
     @patch('requests.get')
     def test_download_monster_page(self, mock_get):
         """Test downloading a monster page from the web"""
-        from pmd_integration import PMDIntegrator
-        
+        # PMDIntegrator is now imported at the module level
         integrator = PMDIntegrator(self.test_dir)
         
         # Mock HTML response
@@ -89,8 +88,7 @@ class TestPMDIntegration(unittest.TestCase):
     
     def test_parse_pmd_to_simulator_format(self):
         """Test conversion from PMD format to simulator format"""
-        from pmd_integration import PMDIntegrator
-        
+        # PMDIntegrator is now imported at the module level
         integrator = PMDIntegrator(self.test_dir)
         
         # Sample PMD data (simplified)
@@ -172,12 +170,11 @@ class TestPMDIntegration(unittest.TestCase):
         self.assertEqual(simulator_data["damage_reduction"]["amount"], 5)
         self.assertEqual(simulator_data["damage_reduction"]["type"], "bludgeoning")
     
-    @patch('pmd_integration.PMDIntegrator.download_monster_page')
-    @patch('pmd_integration.PMDIntegrator.parse_monster_html')
+    @patch('pathfinder_combat_simulator.pmd_integration.PMDIntegrator.download_monster_page')
+    @patch('pathfinder_combat_simulator.pmd_integration.PMDIntegrator.parse_monster_html')
     def test_full_integration_pipeline(self, mock_parse, mock_download):
         """Test the full pipeline from download to storage"""
-        from pmd_integration import PMDIntegrator
-        
+        # PMDIntegrator is now imported at the module level
         integrator = PMDIntegrator(self.test_dir)
         
         # Mock the download and parse steps
@@ -209,8 +206,7 @@ class TestPMDIntegration(unittest.TestCase):
     
     def test_monster_already_exists_locally(self):
         """Test that existing monsters are loaded from local cache"""
-        from pmd_integration import PMDIntegrator
-        
+        # PMDIntegrator is now imported at the module level
         integrator = PMDIntegrator(self.test_dir)
         
         # Create a test monster and save it
@@ -219,7 +215,7 @@ class TestPMDIntegration(unittest.TestCase):
         self.monster_db.save_monster(test_monster)
         
         # Try to get the monster - should load from cache
-        with patch.object(integrator, 'download_monster_page') as mock_download:
+        with patch('pathfinder_combat_simulator.pmd_integration.PMDIntegrator.download_monster_page') as mock_download:
             monster = integrator.get_or_download_monster("Existing Monster")
             
             # Should not have tried to download
@@ -232,8 +228,7 @@ class TestPMDIntegration(unittest.TestCase):
     
     def test_ability_score_conversion_with_none_values(self):
         """Test that None ability scores are handled correctly"""
-        from pmd_integration import PMDIntegrator
-        
+        # PMDIntegrator is now imported at the module level
         integrator = PMDIntegrator(self.test_dir)
         
         # Test undead with no Con/Int
@@ -265,8 +260,7 @@ class TestPMDIntegration(unittest.TestCase):
     
     def test_attack_parsing_complex_cases(self):
         """Test parsing of complex attack patterns"""
-        from pmd_integration import PMDIntegrator
-        
+        # PMDIntegrator is now imported at the module level
         integrator = PMDIntegrator(self.test_dir)
         
         # Test multiple attacks with different patterns
@@ -333,10 +327,10 @@ class TestEnhancedMonsterDatabase(unittest.TestCase):
         """Clean up test fixtures"""
         shutil.rmtree(self.test_dir)
     
-    @patch('pmd_integration.PMDIntegrator.get_or_download_monster')
+    @patch('pathfinder_combat_simulator.pmd_integration.PMDIntegrator.get_or_download_monster')
     def test_enhanced_load_monster_with_download(self, mock_get_monster):
         """Test that the enhanced database can download missing monsters"""
-        from enhanced_monster_database import EnhancedMonsterDatabase
+        # EnhancedMonsterDatabase is now imported at the module level
         
         # Set up mock to return a monster
         mock_monster = Combatant("Downloaded Monster")
@@ -357,8 +351,7 @@ class TestEnhancedMonsterDatabase(unittest.TestCase):
     
     def test_enhanced_load_monster_local_cache(self):
         """Test that local monsters are loaded without downloading"""
-        from enhanced_monster_database import EnhancedMonsterDatabase
-        
+        # EnhancedMonsterDatabase is now imported at the module level
         db = EnhancedMonsterDatabase(self.test_dir)
         
         # Create and save a local monster
@@ -367,7 +360,7 @@ class TestEnhancedMonsterDatabase(unittest.TestCase):
         db.save_monster(local_monster)
         
         # Load the monster - should not attempt download
-        with patch('pmd_integration.PMDIntegrator.get_or_download_monster') as mock_download:
+        with patch('pathfinder_combat_simulator.pmd_integration.PMDIntegrator.get_or_download_monster') as mock_download:
             monster = db.load_monster("Local Monster")
             
             self.assertIsNotNone(monster)
