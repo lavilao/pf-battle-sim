@@ -42,4 +42,5 @@ addopts = "-v --tb=short"
 include = [
     "src/pathfinder_combat_simulator/*.py",
     "src/pathfinder_combat_simulator/monster_data/*.json",
+    "src/pathfinder_combat_simulator/pmd/", # Include the pmd module
 ]

@@ -12,11 +12,11 @@ Tests proper Pathfinder 1e combat rules implementation including:
 import unittest
 import sys
 import os
+import random # Moved import to top level
 
-# Add the code directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'code'))
-
-from pathfinder_simulator import (
+# Assuming tests are run from the root directory where `src` is visible,
+# or pytest handles path resolution for the src layout.
+from pathfinder_combat_simulator import (
     Combatant, CombatEngine, ActionHandler, Attack, DamageType
 )
 
@@ -212,7 +212,7 @@ class TestAttackResolution(unittest.TestCase):
     def test_attack_hits_target_ac(self):
         """Test that attack hits when roll meets or exceeds AC"""
         # Force a specific attack roll by mocking random
-        import random
+        # import random # Moved to top
         original_randint = random.randint
         
         def mock_randint(a, b):
@@ -233,7 +233,7 @@ class TestAttackResolution(unittest.TestCase):
         initial_hp = self.target.current_hp
         
         # Force hit and specific damage
-        import random
+        # import random # Moved to top
         original_randint = random.randint
         
         def mock_randint(a, b):

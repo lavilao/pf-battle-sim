@@ -39,40 +39,67 @@ A comprehensive, rule-compliant battle simulator for Pathfinder 1st Edition foll
 
 ## 📁 File Structure
 
+A simplified overview of the repository structure:
 ```
-/workspace/
-├── code/
-│   ├── pathfinder_simulator.py    # Core simulator engine (Parts 1-3)
-│   ├── pathfinder_cli.py          # Interactive command-line interface
-│   ├── demo_combat.py             # Comprehensive demonstration script
-│   └── monster_data/              # JSON monster database
-│       ├── orc_warrior.json
-│       ├── goblin.json
-│       ├── skeleton.json
-│       └── ...
-├── user_input_files/
-│   └── prompt-pathfinder.md       # Complete 12-part specification
-└── README.md                      # This file
+/
+├── src/
+│   └── pathfinder_combat_simulator/   # Main application package
+│       ├── __init__.py
+│       ├── main.py                    # Main CLI entry point (run with `pathfinder-simulator` or `python -m pathfinder_combat_simulator.main`)
+│       ├── pathfinder_cli.py          # Older CLI, functionality being merged into main.py
+│       ├── pathfinder_simulator.py    # Core combat engine
+│       ├── enhanced_monster_database.py # Handles monster data & PMD integration
+│       ├── pmd_integration.py         # Logic for PMD (aonprd.com) integration
+│       ├── monster_data/              # Default local monster database (JSON files)
+│       │   └── skeleton.json
+│       └── pmd/                       # Submodule for PMD (scraping & parsing from aonprd.com)
+│           └── ...
+├── examples/                          # Example scripts to demonstrate features
+│   ├── demo_combat.py                 # Demo of core combat mechanics
+│   └── demo_pmd_integration.py        # Demo of PMD monster download feature
+├── tests/                             # Automated tests
+│   └── ...
+├── docs/                              # Documentation files
+│   └── pmd_integration.md
+├── pyproject.toml                     # Project build & dependency configuration
+├── README.md                          # This file
+└── ...                                # Other configuration files (.gitignore, etc.)
 ```
 
 ## 🚀 Quick Start
 
-### Run the Interactive Demo
+### Installation (Recommended)
+It's recommended to install the package, which also installs the `pathfinder-simulator` command:
 ```bash
-cd /workspace/code
-python demo_combat.py
+# From the repository root
+uv pip install .
 ```
 
+### Run the Interactive CLI (after installation)
+```bash
+pathfinder-simulator
+```
+Or, for development (from repository root):
+```bash
+uv run python -m src.pathfinder_combat_simulator.main
+# or potentially: uv run python -m pathfinder_combat_simulator.main (depending on uv's cwd handling for src layouts)
+# or directly: python src/pathfinder_combat_simulator/main.py
+```
+
+### Run the Interactive Demo (from repository root)
+The `demo_combat.py` script showcases various combat mechanics:
+```bash
+python examples/demo_combat.py
+```
 This demonstrates:
 - Database operations (save/load monsters)
 - Combat mechanics breakdown
 - Full 4-character combat encounter
 - All implemented features in action
 
-### Use the Interactive CLI
+### Older Interactive CLI (for reference, prefer `main.py`)
 ```bash
-cd /workspace/code
-python pathfinder_cli.py
+python src/pathfinder_combat_simulator/pathfinder_cli.py
 ```
 
 Interactive features:
@@ -82,12 +109,22 @@ Interactive features:
 - Run turn-based combat with player input
 
 ### Use as a Library
+To use the simulator in your own Python projects:
 ```python
-from pathfinder_simulator import Combatant, CombatEngine, MonsterDatabase
+from pathfinder_combat_simulator import (
+    Combatant,
+    CombatEngine,
+    create_enhanced_monster_database
+)
 
-# Load monsters from database
-db = MonsterDatabase()
+# Create an enhanced monster database (supports local files and auto-download via PMD)
+db = create_enhanced_monster_database()
+
+# Load monsters (will download 'Orc Warrior' if not found locally)
 orc = db.load_monster("Orc Warrior")
+if not orc:
+    print("Failed to load Orc Warrior. Ensure PMD integration is working or monster file exists.")
+    exit()
 
 # Create player character
 fighter = Combatant("Hero", is_pc=True)

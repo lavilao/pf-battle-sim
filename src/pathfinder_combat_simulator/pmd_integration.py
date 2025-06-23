@@ -23,11 +23,10 @@ import time
 from typing import Dict, List, Optional, Any
 from urllib.parse import quote
 
-# Add PMD to path to import its modules
-sys.path.append('/home/lavilao570/pf/pmd')
-
 # Import PMD modules
 from pathfinder_simulator import Combatant, MonsterDatabase, DamageType
+# PMD is now a submodule, direct/relative imports should work if src is in PYTHONPATH
+# from .pmd.main import parsePage # This will be used later in the code
 
 
 class MonsterDownloader:
@@ -358,8 +357,11 @@ class PMDIntegrator:
         
         # Load class HD data if available
         try:
-            pmd_dir = "/home/lavilao570/pf/pmd"
-            class_hds_path = os.path.join(pmd_dir, "data", "class_hds.json")
+            # Construct path to class_hds.json, now that pmd is a subdirectory
+            # __file__ is pmd_integration.py
+            # pmd/data/class_hds.json is relative to this file's directory's sibling 'pmd'
+            current_script_dir = os.path.dirname(os.path.abspath(__file__))
+            class_hds_path = os.path.join(current_script_dir, "pmd", "data", "class_hds.json")
             if os.path.exists(class_hds_path):
                 with open(class_hds_path, 'r') as f:
                     self.class_hds = json.load(f)
@@ -388,7 +390,9 @@ class PMDIntegrator:
         try:
             # Set up global variables that PMD parser expects
             # Parse the HTML using PMD's parser
-            from pmd.main import parsePage
+            # pmd_integration.py is in pathfinder_combat_simulator/
+            # pmd module is in pathfinder_combat_simulator/pmd/
+            from .pmd.main import parsePage
             pmd_data = parsePage(html, url)
             return pmd_data
         except Exception as e:
