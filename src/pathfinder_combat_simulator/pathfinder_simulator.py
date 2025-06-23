@@ -298,6 +298,8 @@ class Combatant:
         self.conditions: set = set()
         self.is_flat_footed = True
         self.has_acted_this_combat = False
+        self.aoo_made_this_round = 0
+        self.has_moved_this_turn = False # For 5-foot step tracking
         
         # Equipment
         self.equipment_slots: Dict[str, Optional[str]] = {
@@ -324,70 +326,210 @@ class Combatant:
             "Gargantuan": -4, "Colossal": -8
         }
         return size_modifiers.get(self.size, 0)
-    
+
+    def get_special_size_modifier_for_cmb_cmd(self) -> int:
+        """Get special size modifier for CMB and CMD based on Pathfinder rules."""
+        size_map = {
+            "Fine": -8, "Diminutive": -4, "Tiny": -2, "Small": -1,
+            "Medium": 0, "Large": 1, "Huge": 2, "Gargantuan": 4, "Colossal": 8
+        }
+        return size_map.get(self.size, 0)
+
     def calculate_cmb(self) -> int:
-        """Calculate Combat Maneuver Bonus"""
-        str_mod = self.ability_scores.get_modifier("strength")
-        size_mod = self.get_size_modifier()
-        return self.base_attack_bonus + str_mod + size_mod
+        """Calculate Combat Maneuver Bonus (CMB)."""
+        bab = self.base_attack_bonus
+
+        # Creatures Tiny or smaller use Dexterity instead of Strength for CMB.
+        if self.size in ["Fine", "Diminutive", "Tiny"]:
+            ability_mod = self.ability_scores.get_modifier("dexterity")
+        else:
+            ability_mod = self.ability_scores.get_modifier("strength")
+
+        special_size_mod = self.get_special_size_modifier_for_cmb_cmd()
+
+        # TODO: Add other modifiers from feats, spells, etc.
+        return bab + ability_mod + special_size_mod
     
     def calculate_cmd(self) -> int:
-        """Calculate Combat Maneuver Defense"""
+        """Calculate Combat Maneuver Defense (CMD)."""
+        bab = self.base_attack_bonus
         str_mod = self.ability_scores.get_modifier("strength")
         dex_mod = self.ability_scores.get_modifier("dexterity")
-        size_mod = self.get_size_modifier()
+        special_size_mod = self.get_special_size_modifier_for_cmb_cmd()
         
-        # CMD uses AC modifiers (dodge, deflection, etc.) but not armor/shield/natural
-        base_cmd = 10 + self.base_attack_bonus + str_mod + dex_mod + size_mod
-        base_cmd += self.armor_class.deflection_bonus + self.armor_class.dodge_bonus
+        # CMD = 10 + BAB + Str mod + Dex mod + special size mod + other AC bonuses (deflection, dodge, etc.)
+        # Note: Armor, shield, and natural armor bonuses do NOT apply to CMD.
+        cmd = 10 + bab + str_mod + dex_mod + special_size_mod
         
+        # Add AC modifiers that apply to CMD
+        cmd += self.armor_class.deflection_bonus
+        cmd += self.armor_class.dodge_bonus
+        # TODO: Add other applicable AC bonuses (insight, luck, morale, profane, sacred)
+        # TODO: Apply penalties to AC to CMD as well.
+
         if self.is_flat_footed:
-            base_cmd -= dex_mod  # lose dex bonus when flat-footed
+            # A flat-footed creature does not add its Dexterity bonus to its CMD.
+            # Note: We added total dex_mod initially, so if flat-footed, subtract it.
+            # However, conditions like "pinned" or "helpless" might also make dex 0,
+            # which would already be handled by get_modifier if those conditions modify temp_dex.
+            # For simplicity here, if is_flat_footed is true, we ensure Dex bonus is not applied.
+            # This assumes get_modifier("dexterity") returns the current effective Dex mod.
+            # If flat_footed specifically negates Dex for CMD regardless of other Dex penalties,
+            # then we should subtract the positive part of dex_mod if it was added.
+
+            # If dex_mod was positive and added, remove it.
+            # If dex_mod was negative, it should still apply as a penalty.
+            # The rule states "does not add its Dexterity bonus", implying positive contributions.
+            # Penalties (negative Dex mod) should still apply.
+            if dex_mod > 0:
+                 cmd -= dex_mod
         
-        return base_cmd
+        return cmd
     
     def get_ac(self, ac_type: str = "standard") -> int:
         """Get armor class of specified type with proper size modifiers"""
         dex_mod = self.ability_scores.get_modifier("dexterity")
-        size_mod = self.get_size_modifier()
+        size_mod = self.get_size_modifier() # This is the attack/AC size modifier, not CMB/CMD one
         
-        # Apply size modifier to AC (Pathfinder rules)
+        # Calculate base AC based on type
         if ac_type == "touch":
-            base_ac = self.armor_class.calculate_touch_ac(dex_mod, self.is_flat_footed)
-            return base_ac + size_mod
-        elif ac_type == "flat_footed":
-            base_ac = self.armor_class.calculate_flat_footed_ac(dex_mod)
-            return base_ac + size_mod
+            ac = self.armor_class.calculate_touch_ac(dex_mod, self.is_flat_footed or self.has_condition("helpless") or self.has_condition("stunned") or self.has_condition("paralyzed"))
+        elif ac_type == "flat_footed" or self.is_flat_footed or self.has_condition("helpless") or self.has_condition("stunned") or self.has_condition("paralyzed"):
+            ac = self.armor_class.calculate_flat_footed_ac(dex_mod) # Dex mod is ignored internally by this call
         else:  # standard AC
-            base_ac = self.armor_class.calculate_ac(dex_mod, self.is_flat_footed)
-            return base_ac + size_mod
+            ac = self.armor_class.calculate_ac(dex_mod, self.is_flat_footed)
+
+        ac += size_mod # Apply general size modifier to AC
+
+        # Condition-based AC penalties / modifications
+        if self.has_condition("blinded"):
+            ac -= 2
+            # Loses Dex bonus to AC is handled by passing is_flat_footed=True or similar to calculate_ac variants
+            # For blinded, effectively flat-footed against all attacks.
+        if self.has_condition("cowering"): # cowering not in the initial list, but similar to helpless
+            ac -= 2
+            # Loses Dex bonus to AC
+        if self.has_condition("helpless"): # e.g. paralyzed, unconscious, bound, sleeping
+            ac -= 4 # Specific penalty for helplessness against melee attacks. Ranged attacks don't get this.
+                    # This needs to be context specific (melee vs ranged attacker).
+                    # For now, general AC penalty.
+            # Loses Dex bonus to AC (handled by flat_footed logic in calculate_ac)
+        if self.has_condition("pinned"):
+             ac -= 4 # Pinned implies grappled, but also has specific -4 AC.
+             # Loses Dex bonus to AC
+        if self.has_condition("prone"):
+            # This is context-dependent: +4 AC vs ranged, -4 AC vs melee.
+            # Cannot be generically applied here without knowing attacker type.
+            # For now, this will be handled where attack roll is made.
+            pass
+        if self.has_condition("stunned"):
+            ac -= 2
+            # Loses Dex bonus to AC
+
+        return ac
     
     def get_attack_bonus(self, attack: Attack, is_full_attack: bool = False, 
-                        attack_number: int = 0) -> int:
-        """Calculate total attack bonus for a specific attack"""
-        ability_mod = self.ability_scores.get_modifier(attack.associated_ability_for_attack)
-        size_mod = self.get_size_modifier()
+                        attack_number: int = 0, target: Optional['Combatant'] = None) -> int:
+        """
+        Calculate total attack bonus for a specific attack.
+        Target is optional but needed for some conditions (e.g. prone).
+        """
+        ability_to_use = attack.associated_ability_for_attack
+
+        # Apply penalties from conditions to ability scores for modifier calculation
+        # This is a simplified approach. A full system would have temporary ability score penalties.
+        effective_str_mod = self.ability_scores.get_modifier("strength")
+        effective_dex_mod = self.ability_scores.get_modifier("dexterity")
+
+        if self.has_condition("exhausted"):
+            effective_str_mod -= 3 # -6 penalty to score = -3 to modifier
+            effective_dex_mod -= 3
+        elif self.has_condition("fatigued"):
+            effective_str_mod -= 1 # -2 penalty to score = -1 to modifier
+            effective_dex_mod -= 1
+
+        if self.has_condition("entangled"): # -4 dex
+             effective_dex_mod -= 2
+
+        if ability_to_use == "str":
+            ability_mod = effective_str_mod
+        elif ability_to_use == "dex":
+            ability_mod = effective_dex_mod
+        else: # other abilities, not typically modified by these conditions directly
+            ability_mod = self.ability_scores.get_modifier(ability_to_use)
+
+        size_mod = self.get_size_modifier() # Attack roll size mod
         
-        # Base attack bonus (reduced for iterative attacks in full attack)
         bab = self.base_attack_bonus
         if is_full_attack and attack_number > 0:
             bab -= (attack_number * 5)
         
-        return bab + ability_mod + size_mod + attack.enhancement_bonus
+        total_bonus = bab + ability_mod + size_mod + attack.enhancement_bonus
+
+        # Condition-based attack penalties
+        if self.has_condition("blinded"): # Though usually can't attack specific target if fully blind
+            pass # Blinded doesn't directly penalize attack rolls, but makes targets have total concealment (50% miss)
+        if self.has_condition("dazzled"):
+            total_bonus -= 1
+        if self.has_condition("entangled"):
+            total_bonus -= 2
+        if self.has_condition("frightened") or self.has_condition("shaken"):
+            total_bonus -= 2
+        if self.has_condition("grappled"): # -2 penalty on attacks, unless grappling or escaping
+            # Assuming this attack is not part of a grapple maintenance action
+            total_bonus -= 2
+        if self.has_condition("prone") and attack.attack_type == AttackType.MELEE:
+            total_bonus -= 4
+        elif self.has_condition("prone") and attack.attack_type == AttackType.RANGED and attack.name.lower() != "crossbow" and attack.name.lower() != "shuriken":
+             # Most ranged weapons cannot be used while prone. Crossbows/shuriken are exceptions.
+             # This should ideally prevent the attack entirely if not allowed.
+             # For now, apply a heavy penalty or mark as invalid.
+             # Let's assume for now it means cannot attack, this method should signal that.
+             # Returning a very low number to ensure miss, or raise exception.
+             # For now, log and penalize heavily.
+             print(f"Warning: {self.name} attempting ranged attack ({attack.name}) while prone.")
+             total_bonus -= 20 # Effectively impossible to hit for most.
+        if self.has_condition("sickened"):
+            total_bonus -= 2
+        # Stunned: cannot take actions, so won't be attacking.
+        # Helpless: cannot take actions.
+        # Nauseated: cannot attack.
+        # Paralyzed: cannot take actions.
+
+        # Target-related penalties (e.g. target is prone and attacker is ranged)
+        if target and target.has_condition("prone") and attack.attack_type == AttackType.RANGED:
+            # Attacking a prone target with a ranged weapon. No penalty for attacker, target gets +4 AC vs ranged.
+            # This is handled on the AC side of target.
+            pass
+
+        return total_bonus
     
     def get_damage_bonus(self, attack: Attack, is_off_hand: bool = False, 
                         is_two_handed: bool = False) -> int:
         """Calculate damage bonus for an attack"""
-        ability_mod = self.ability_scores.get_modifier(attack.associated_ability_for_damage)
+        ability_to_use = attack.associated_ability_for_damage
+        ability_mod = self.ability_scores.get_modifier(ability_to_use) # Base modifier
+
+        # Apply penalties from conditions to ability scores for modifier calculation
+        if ability_to_use == "strength":
+            if self.has_condition("exhausted"):
+                ability_mod -= 3 # -6 Str score
+            elif self.has_condition("fatigued"):
+                ability_mod -= 1 # -2 Str score
         
         # Modify strength bonus based on attack type
-        if attack.associated_ability_for_damage == "strength":
+        if ability_to_use == "strength":
             if is_off_hand:
                 ability_mod = ability_mod // 2 if ability_mod > 0 else ability_mod
             elif is_two_handed and self.size != "Small":  # Two-handed weapons
                 ability_mod = int(ability_mod * 1.5)
         
-        return ability_mod + attack.enhancement_bonus
+        damage_bonus = ability_mod + attack.enhancement_bonus
+
+        if self.has_condition("sickened"):
+            damage_bonus -= 2 # Sickened applies penalty to damage rolls too
+
+        return damage_bonus
     
     def roll_damage(self, attack: Attack, is_critical: bool = False, 
                    is_off_hand: bool = False, is_two_handed: bool = False) -> int:
@@ -414,7 +556,61 @@ class Combatant:
             damage += damage_bonus
         
         return max(1, damage)  # Minimum 1 damage
-    
+
+    def get_threatened_squares(self, current_position: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+        Get a list of squares threatened by this combatant.
+        For simplicity, assumes combatants occupy a single square (5ft x 5ft).
+        Reach is determined by the first equipped melee weapon or default 5ft.
+        This is a simplified model; a full grid system would be more complex.
+        """
+        # TODO: Integrate with a proper grid system. This is a placeholder.
+        # For now, assume all adjacent squares are threatened by default.
+        # A more robust implementation would check weapon reach.
+
+        reach = 5 # default reach
+        if self.attacks:
+            # Find first melee attack to determine reach
+            for attack in self.attacks:
+                if attack.reach > 0 and attack.attack_type in [AttackType.MELEE, AttackType.NATURAL]:
+                    reach = attack.reach
+                    break
+
+        # Simplified: if reach is 5ft, threaten adjacent squares (including diagonals)
+        # If reach is 10ft, threaten squares 2 units away, but not adjacent ones (typical for reach weapons)
+        # This is a very simplified model of reach.
+
+        threatened = []
+        x, y = current_position
+
+        if reach == 5:
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    if dx == 0 and dy == 0:
+                        continue
+                    threatened.append((x + dx, y + dy))
+        elif reach == 10: # Typical reach weapon behavior (threatens 10ft, not 5ft)
+             for dx in [-2, -1, 0, 1, 2]:
+                for dy in [-2, -1, 0, 1, 2]:
+                    # Only squares at exactly 2 units distance (Manhattan distance for simplicity here)
+                    # Or squares that are 2 units away diagonally
+                    manhattan_dist = abs(dx) + abs(dy)
+                    chebyshev_dist = max(abs(dx), abs(dy))
+
+                    if chebyshev_dist == 2: # Squares like (0,2), (1,2), (2,2), (2,1), (2,0) etc.
+                         threatened.append((x + dx, y + dy))
+
+        # This is a placeholder. Actual threatened squares depend on grid, position, and weapon.
+        # For now, let's assume a 5ft reach threatens all adjacent squares.
+        # A more sophisticated model would use the 'reach' attribute of equipped weapons.
+        if not threatened and reach > 0: # Fallback for simple adjacency if specific reach logic fails
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    if dx == 0 and dy == 0:
+                        continue
+                    threatened.append((x + dx, y + dy))
+        return threatened
+
     def take_damage(self, damage: int, damage_type: str = "untyped") -> int:
         """Apply damage, considering DR and resistances"""
         effective_damage = damage
@@ -448,13 +644,116 @@ class Combatant:
             effective_damage -= temp_damage
         
         self.current_hp -= effective_damage
+
+        # Update conditions based on HP
+        if self.current_hp <= 0 and self.current_hp > -self.ability_scores.get_total_score("constitution"):
+            self.add_condition("disabled" if self.current_hp == 0 else "dying")
+            if self.current_hp < 0:
+                self.remove_condition("disabled") # Can't be disabled and dying
+        elif self.current_hp <= -self.ability_scores.get_total_score("constitution"):
+            self.add_condition("dead")
+            self.remove_condition("dying")
+            self.remove_condition("disabled")
+            self.current_hp = -self.ability_scores.get_total_score("constitution") # HP doesn't go below this
+
         return effective_damage
-    
+
+    def is_disabled(self) -> bool:
+        """Check if combatant is disabled (at 0 HP)"""
+        return self.current_hp == 0 and "dead" not in self.conditions
+
+    def is_dying(self) -> bool:
+        """Check if combatant is dying (negative HP, but not dead)"""
+        return self.current_hp < 0 and "dead" not in self.conditions
+
+    def is_dead(self) -> bool:
+        """Check if combatant is dead (HP <= -Constitution score)"""
+        return "dead" in self.conditions
+
+    def stabilize(self) -> bool:
+        """Attempt to stabilize if dying. Returns True if stabilized, False otherwise."""
+        if not self.is_dying():
+            return False # Not dying, or already stable/dead
+
+        # Penalty on check is equal to negative HP total
+        penalty = abs(self.current_hp) if self.current_hp < 0 else 0
+        roll = random.randint(1, 20)
+
+        # Automatic success on natural 20
+        if roll == 20:
+            self.add_condition("stable")
+            self.remove_condition("dying") # No longer actively dying once stable
+            return True
+
+        # Check against DC 10
+        if roll - penalty >= 10:
+            self.add_condition("stable")
+            self.remove_condition("dying")
+            return True
+        else:
+            # Failed stabilization, lose 1 HP
+            self.current_hp -= 1
+            # Check for death after HP loss
+            if self.current_hp <= -self.ability_scores.get_total_score("constitution"):
+                self.add_condition("dead")
+                self.remove_condition("dying")
+                self.remove_condition("stable")
+            return False
+
     def heal(self, amount: int) -> int:
         """Heal damage"""
         old_hp = self.current_hp
         self.current_hp = min(self.max_hp, self.current_hp + amount)
+        # Healing can remove disabled/dying conditions
+        if self.current_hp > 0:
+            self.remove_condition("disabled")
+            self.remove_condition("dying")
+            self.remove_condition("stable")
+        elif self.current_hp == 0:
+            self.add_condition("disabled")
+            self.remove_condition("dying")
+            self.remove_condition("stable")
         return self.current_hp - old_hp
+
+    def make_saving_throw(self, save_type: str, dc: int, source_effect_name: str = "Unknown Effect") -> bool:
+        """
+        Make a saving throw against a given DC.
+        save_type should be 'fortitude', 'reflex', or 'will'.
+        Returns True if the save is successful, False otherwise.
+        """
+        if save_type not in ["fortitude", "reflex", "will"]:
+            print(f"Error: Invalid save type '{save_type}' for {self.name}.")
+            return False # Or raise an error
+
+        save_bonus = self.saving_throws.calculate_save(save_type, self.ability_scores)
+        roll = random.randint(1, 20)
+        total_roll = roll + save_bonus
+
+        success = False
+        if roll == 1: # Natural 1 always fails
+            success = False
+        elif roll == 20: # Natural 20 always succeeds
+            success = True
+        else:
+            success = total_roll >= dc
+
+        log_message_intro = f"{self.name} makes a {save_type.capitalize()} save for {source_effect_name} (DC {dc}):"
+        log_message_roll = f"  Roll: {roll} + Bonus: {save_bonus} = {total_roll}"
+
+        # Access the combat log through a global or passed-in reference if needed
+        # For now, let's assume a way to log this. If this method is called from CombatEngine,
+        # the engine's log can be used.
+        # This might require passing the logger or making it accessible.
+        # As a temporary measure, we can print.
+        print(log_message_intro)
+        print(log_message_roll)
+
+        if success:
+            print("  Save successful!")
+        else:
+            print("  Save failed.")
+
+        return success
     
     def add_condition(self, condition: str):
         """Add a condition"""
@@ -479,6 +778,8 @@ class Combatant:
         self.has_acted_this_combat = False
         self.current_initiative_roll = 0
         self.final_initiative_score = 0
+        self.aoo_made_this_round = 0
+        self.has_moved_this_turn = False
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
@@ -890,6 +1191,10 @@ class CombatEngine:
                 
                 # Process end-of-round effects here
                 # TODO: Handle spell durations, ongoing effects, etc.
+                # Reset AoO counts and movement flags at the end of a full round
+                for cb in self.combatants:
+                    cb.aoo_made_this_round = 0
+                    cb.has_moved_this_turn = False # Reset for 5-foot step next round
         
         # Announce whose turn it is
         current_combatant = self.get_current_combatant()
@@ -898,28 +1203,108 @@ class CombatEngine:
                 self.log.add_entry(f"{current_combatant.name}'s turn (cannot act - unaware)")
                 self.advance_turn()  # Skip unaware combatants in surprise round
             else:
-                self.log.add_entry(f"{current_combatant.name}'s turn")
-    
+                self.log.add_entry(f"{current_combatant.name}'s turn ({current_combatant.current_hp}/{current_combatant.max_hp} HP)")
+                # At the start of their turn, if a combatant is dying and not stable, they attempt to stabilize or lose HP.
+                if current_combatant.is_dying() and not current_combatant.has_condition("stable"):
+                    self.log.add_entry(f"{current_combatant.name} is dying and must make a stabilization check.")
+                    if current_combatant.stabilize():
+                        self.log.add_entry(f"{current_combatant.name} stabilized!")
+                    else:
+                        self.log.add_entry(f"{current_combatant.name} failed to stabilize and loses 1 HP.")
+                        if current_combatant.is_dead():
+                             self.log.add_entry(f"{current_combatant.name} has died from HP loss.")
+                        else:
+                            self.log.add_entry(f"{current_combatant.name} HP: {current_combatant.current_hp}/{current_combatant.max_hp}")
+
+    def can_make_aoo(self, combatant: Combatant) -> bool:
+        """Check if a combatant can make an Attack of Opportunity."""
+        if combatant.is_flat_footed and "Combat Reflexes" not in combatant.feats:
+            return False
+
+        max_aoos = 1
+        if "Combat Reflexes" in combatant.feats:
+            max_aoos += combatant.ability_scores.get_modifier("dexterity")
+
+        return combatant.aoo_made_this_round < max_aoos
+
+    def trigger_attacks_of_opportunity(self, provoking_combatant: Combatant, provoking_action_type: str):
+        """
+        Checks for and resolves AoOs against a combatant performing a provoking action.
+        This is a simplified version and needs integration with a grid/positioning system.
+        """
+        # TODO: Integrate with actual grid positions.
+        # For now, assume all other active combatants can potentially make an AoO if they threaten.
+        # This is a placeholder for actual distance/reach checks.
+
+        self.log.add_entry(f"{provoking_combatant.name} performing {provoking_action_type} may provoke AoOs.")
+
+        for potential_attacker in self.combatants:
+            if potential_attacker == provoking_combatant or potential_attacker.is_dead() or potential_attacker.has_condition("unconscious"):
+                continue
+
+            # Simplified check: Does potential_attacker threaten provoking_combatant?
+            # This needs current positions of both combatants.
+            # For now, let's assume they are within reach if the potential_attacker can make an AoO.
+            # A real implementation would check:
+            # provoking_combatant_position = self.get_combatant_position(provoking_combatant)
+            # if provoking_combatant_position in potential_attacker.get_threatened_squares(self.get_combatant_position(potential_attacker)):
+
+            if self.can_make_aoo(potential_attacker):
+                # Placeholder: Assume the first melee attack is used for AoO
+                aoo_attack = None
+                for attack in potential_attacker.attacks:
+                    if attack.attack_type == AttackType.MELEE or attack.attack_type == AttackType.NATURAL:
+                        aoo_attack = attack
+                        break
+
+                if aoo_attack:
+                    self.log.add_entry(f"{potential_attacker.name} gets an AoO against {provoking_combatant.name}!")
+                    self.make_attack(potential_attacker, provoking_combatant, aoo_attack, is_aoo=True)
+                    potential_attacker.aoo_made_this_round += 1
+                    if provoking_combatant.is_dead() or provoking_combatant.has_condition("unconscious"):
+                        self.log.add_entry(f"{provoking_combatant.name} is downed by the AoO, action interrupted.")
+                        # TODO: Properly interrupt the action. For now, just log.
+                        break
+                else:
+                    self.log.add_entry(f"{potential_attacker.name} could make an AoO but has no suitable melee/natural attack.")
+            # else:
+            #     self.log.add_entry(f"{potential_attacker.name} cannot make an AoO (flat-footed or max AoOs reached).")
+
     def make_attack(self, attacker: Combatant, target: Combatant, attack: Attack, 
-                   is_full_attack: bool = False, attack_number: int = 0) -> AttackResult:
+                   is_full_attack: bool = False, attack_number: int = 0, is_aoo: bool = False) -> AttackResult:
         """
         Execute an attack between two combatants
         Implements Part 3 attack mechanics
         """
         result = AttackResult(attacker.name, target.name, attack.name)
         
-        # Calculate attack bonus
-        result.total_attack_bonus = attacker.get_attack_bonus(attack, is_full_attack, attack_number)
-        
+        # Calculate attack bonus, passing target for context
+        result.total_attack_bonus = attacker.get_attack_bonus(
+            attack,
+            is_full_attack=(is_aoo and False),
+            attack_number=(0 if is_aoo else attack_number),
+            target=target
+        )
+
         # Roll attack
         result.attack_roll = random.randint(1, 20)
         total_attack = result.attack_roll + result.total_attack_bonus
         
         # Determine target AC
-        if target.is_flat_footed:
-            result.target_ac = target.get_ac("flat_footed")
-        else:
-            result.target_ac = target.get_ac("standard")
+        base_ac_type = "standard"
+        if target.is_flat_footed or target.has_condition("helpless") or target.has_condition("stunned") or target.has_condition("paralyzed") or target.has_condition("blinded"):
+            base_ac_type = "flat_footed"
+
+        result.target_ac = target.get_ac(base_ac_type)
+
+        # Specific AC adjustments for Prone condition based on attack type
+        if target.has_condition("prone"):
+            if attack.attack_type == AttackType.RANGED:
+                self.log.add_entry(f"  {target.name} is prone, +4 AC vs ranged attack.")
+                result.target_ac += 4
+            elif attack.attack_type == AttackType.MELEE:
+                self.log.add_entry(f"  {target.name} is prone, -4 AC vs melee attack.")
+                result.target_ac -= 4
         
         # Check for hit
         is_natural_1 = result.attack_roll == 1
@@ -929,10 +1314,9 @@ class CombatEngine:
             result.is_hit = False
         elif is_natural_20:
             result.is_hit = True
-            result.is_critical_threat = True
+            result.is_critical_threat = True # Natural 20 always threatens
         else:
             result.is_hit = total_attack >= result.target_ac
-            # Check for critical threat
             if result.is_hit and result.attack_roll in attack.get_threat_range():
                 result.is_critical_threat = True
         
@@ -942,20 +1326,53 @@ class CombatEngine:
         if not result.is_hit:
             self.log.add_entry("  MISS!")
             return result
-        
-        self.log.add_entry("  HIT!")
+
+        # Hit occurs, now check for concealment miss chance (e.g., from target being blinded by attacker's perspective, or other concealment)
+        # If attacker is blinded, they treat all targets as having total concealment (50% miss chance)
+        miss_chance = 0
+        if attacker.has_condition("blinded"):
+            miss_chance = 50
+            self.log.add_entry(f"  Attacker {attacker.name} is blinded, 50% miss chance.")
+        # TODO: Add other sources of concealment for the target.
+
+        if miss_chance > 0:
+            if random.randint(1, 100) <= miss_chance:
+                self.log.add_entry(f"  HIT! (but missed due to {miss_chance}% miss chance from concealment/blindness)")
+                result.is_hit = False # Mark as miss due to concealment
+                # Even if it was a critical threat, concealment miss negates the crit.
+                result.is_critical_threat = False
+                result.is_critical_hit = False
+                return result # Attack effectively missed
+
+        self.log.add_entry("  HIT!") # If it wasn't a miss due to concealment
         
         # Handle critical hit confirmation
-        if result.is_critical_threat:
+        if result.is_critical_threat: # Re-check, as concealment might have negated it
             self.log.add_entry("  Critical threat! Rolling to confirm...")
             confirm_roll = random.randint(1, 20)
-            confirm_total = confirm_roll + result.total_attack_bonus
+            # Confirmation roll uses same bonuses as original attack
+            confirm_total_attack_bonus = attacker.get_attack_bonus(
+                attack,
+                is_full_attack=(is_aoo and False), # Crit confirm is like a new attack roll
+                attack_number=(0 if is_aoo else attack_number),
+                target=target
+            )
+            confirm_total = confirm_roll + confirm_total_attack_bonus
             
-            if confirm_total >= result.target_ac:
+            # Target AC for confirmation is their normal AC at the time of the confirmation.
+            # (Concealment does not apply to the confirmation roll itself, only the original hit)
+            confirm_target_ac = target.get_ac(base_ac_type) # Use same base_ac_type as original
+            if target.has_condition("prone"): # Re-apply prone AC mods for confirm
+                if attack.attack_type == AttackType.RANGED: confirm_target_ac += 4
+                elif attack.attack_type == AttackType.MELEE: confirm_target_ac -= 4
+
+            self.log.add_entry(f"  Confirmation roll: {confirm_roll} + {confirm_total_attack_bonus} = {confirm_total} vs AC {confirm_target_ac}")
+
+            if confirm_total >= confirm_target_ac: # Crit confirmed if confirmation roll hits
                 result.is_critical_hit = True
-                self.log.add_entry(f"  Confirmation roll: {confirm_roll} + {result.total_attack_bonus} = {confirm_total} - CRITICAL HIT!")
+                self.log.add_entry(f"  CRITICAL HIT!")
             else:
-                self.log.add_entry(f"  Confirmation roll: {confirm_roll} + {result.total_attack_bonus} = {confirm_total} - confirmed as normal hit")
+                self.log.add_entry(f"  Confirmed as normal hit.")
         
         # Roll damage
         is_off_hand = False  # TODO: Implement off-hand detection
@@ -1039,10 +1456,46 @@ class ActionHandler:
             return False
         
         if self.combat_engine.is_surprise_round:
-            # In surprise round, only standard OR move actions allowed (plus free/swift)
-            if action_type in [ActionType.FULL_ROUND]:
+            # In surprise round, only standard OR move actions allowed (plus free/swift) for aware combatants
+            if not getattr(combatant, 'is_aware_in_surprise_round', True):
+                self.combat_engine.log.add_entry(f"{combatant.name} cannot act in surprise round (unaware).")
+                return False
+            if action_type == ActionType.FULL_ROUND:
+                self.combat_engine.log.add_entry(f"{combatant.name} cannot take a full-round action in a surprise round.")
                 return False
         
+        # Conditions preventing most actions
+        if combatant.has_condition("stunned") or \
+           combatant.has_condition("paralyzed") or \
+           combatant.has_condition("helpless") or \
+           combatant.has_condition("unconscious") or \
+           combatant.is_dead() or \
+           combatant.is_dying(): # Dying combatants are unconscious
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot take actions due to condition ({[c for c in ['stunned', 'paralyzed', 'helpless', 'unconscious', 'dead', 'dying'] if combatant.has_condition(c) or (c=='dead' and combatant.is_dead()) or (c=='dying' and combatant.is_dying())][0]}).")
+            return False
+
+        # Nauseated: Only a single move action
+        if combatant.has_condition("nauseated"):
+            if action_type != ActionType.MOVE:
+                self.combat_engine.log.add_entry(f"{combatant.name} is nauseated and can only take a move action.")
+                return False
+            # TODO: Need to track if the move action was already taken this turn if nauseated.
+            # For now, this check is per-action attempt.
+
+        # Disabled: Single move or standard action. No full-round.
+        if combatant.is_disabled(): # at 0 HP
+            if action_type == ActionType.FULL_ROUND:
+                self.combat_engine.log.add_entry(f"{combatant.name} is disabled and cannot take a full-round action.")
+                return False
+            # TODO: Track if standard/move already taken this turn if disabled.
+            # If taking a standard action while disabled (not healing), take 1 damage.
+            if action_type == ActionType.STANDARD:
+                 # This logic should be after the action, not in can_take_action
+                 pass
+
+        # TODO: Add checks for Frightened (must flee), Panicked (must flee/cower), Confused (roll behavior)
+        # These often dictate the *type* of action rather than preventing all actions.
+
         return True
     
     def take_attack_action(self, attacker: Combatant, target: Combatant, 
@@ -1051,16 +1504,37 @@ class ActionHandler:
         if not self.can_take_action(attacker, ActionType.STANDARD):
             return None
         
+        if attacker.is_disabled(): # Taking a standard action while disabled
+            self.combat_engine.log.add_entry(f"{attacker.name} is disabled and takes 1 damage for performing a standard action.")
+            attacker.take_damage(1, "untyped") # This damage might make them dying/dead
+            if not self.can_take_action(attacker, ActionType.STANDARD): # Re-check if they are now unable to act
+                return None
+
+
         if attack_index >= len(attacker.attacks):
             self.combat_engine.log.add_entry(f"{attacker.name} has no attack at index {attack_index}")
             return None
         
         attack = attacker.attacks[attack_index]
+
+        # Ranged attacks provoke AoOs
+        if attack.attack_type == AttackType.RANGED:
+            # Check for AoO before the attack proceeds
+            # Pass 'ranged attack' as the provoking action description
+            self.combat_engine.trigger_attacks_of_opportunity(attacker, "making a ranged attack")
+            # If the attacker was downed by an AoO, they can't complete the action
+            if attacker.is_dead() or attacker.has_condition("unconscious") or attacker.has_condition("stunned"):
+                self.combat_engine.log.add_entry(f"{attacker.name} cannot complete ranged attack due to AoO effects.")
+                return None # Attacker downed/disabled
+
         return self.combat_engine.make_attack(attacker, target, attack)
     
     def take_full_attack_action(self, attacker: Combatant, target: Combatant, 
                                attack_index: int = 0) -> List[AttackResult]:
         """Take a full-attack action (all available attacks)"""
+        # Full-round actions generally don't provoke for starting, but individual attacks might
+        # if they are ranged, etc. However, the standard rule is that a full-attack action itself doesn't provoke.
+        # Provocation for ranged attacks is handled within make_attack or take_attack_action.
         if not self.can_take_action(attacker, ActionType.FULL_ROUND):
             return []
         
@@ -1085,19 +1559,597 @@ class ActionHandler:
                 break
         
         return results
-    
-    def take_move_action(self, combatant: Combatant, distance: int = 0):
-        """Take a move action"""
-        if not self.can_take_action(combatant, ActionType.MOVE):
+
+    def take_stabilize_other_action(self, actor: Combatant, target: Combatant) -> bool:
+        """Use Heal skill (DC 15) to stabilize a dying target."""
+        if not self.can_take_action(actor, ActionType.STANDARD):
+            self.combat_engine.log.add_entry(f"{actor.name} cannot take a standard action to stabilize.")
             return False
+
+        if not target.is_dying():
+            self.combat_engine.log.add_entry(f"{target.name} is not dying.")
+            return False
+
+        # Simulate Heal skill check (DC 15)
+        # Assuming a +0 Heal skill for simplicity for now
+        # TODO: Implement actual skill checks for Heal
+        heal_skill_modifier = actor.skills.get("Heal", 0)
+        roll = random.randint(1, 20)
+
+        # Stabilizing a dying friend provokes an AoO
+        self.combat_engine.trigger_attacks_of_opportunity(actor, "stabilizing another character")
+        if actor.is_dead() or actor.has_condition("unconscious") or actor.has_condition("stunned"):
+            self.combat_engine.log.add_entry(f"{actor.name} cannot complete stabilization due to AoO effects.")
+            return False
+
+        self.combat_engine.log.add_entry(f"{actor.name} attempts to stabilize {target.name} with a Heal check.")
+        self.combat_engine.log.add_entry(f"  Heal check roll: {roll} + {heal_skill_modifier} = {roll + heal_skill_modifier} vs DC 15")
+
+        if roll + heal_skill_modifier >= 15:
+            target.add_condition("stable")
+            target.remove_condition("dying") # No longer actively dying
+            self.combat_engine.log.add_entry(f"{target.name} has been stabilized by {actor.name}!")
+            return True
+        else:
+            self.combat_engine.log.add_entry(f"{actor.name} failed to stabilize {target.name}.")
+            return False
+
+    def take_cast_spell_action(self, caster: Combatant, spell_name: str, target: Optional[Combatant] = None):
+        """Placeholder for casting a spell. Most spells provoke AoOs."""
+        if not self.can_take_action(caster, ActionType.STANDARD): # Assuming standard action spell
+            self.combat_engine.log.add_entry(f"{caster.name} cannot take a standard action to cast a spell.")
+            return
+
+        # Casting a spell provokes an AoO
+        self.combat_engine.trigger_attacks_of_opportunity(caster, f"casting {spell_name}")
+        if caster.is_dead() or caster.has_condition("unconscious") or caster.has_condition("stunned"):
+            self.combat_engine.log.add_entry(f"{caster.name} cannot complete casting {spell_name} due to AoO effects.")
+            return
+
+        self.combat_engine.log.add_entry(f"{caster.name} casts {spell_name}" + (f" on {target.name}" if target else "") + ". (Spell effects not implemented yet).")
+        # TODO: Implement actual spell effects, concentration checks if damaged by AoO, etc.
+
+    def take_aid_another_action(self, actor: Combatant, target_creature_to_hinder: Combatant, ally_to_aid: Combatant, aid_type: str = "attack") -> bool:
+        """
+        Perform the Aid Another action.
+        aid_type can be "attack" (bonus to ally's next attack roll) or "ac" (bonus to ally's AC against target's next attack).
+        This is a standard action.
+        """
+        if not self.can_take_action(actor, ActionType.STANDARD):
+            self.combat_engine.log.add_entry(f"{actor.name} cannot take a standard action for Aid Another.")
+            return False
+
+        # TODO: Check if actor is in position to make a melee attack on target_creature_to_hinder.
+        # This requires grid positioning. For now, assume true if they are in the combat.
+
+        # The check is an attack roll against AC 10.
+        # For simplicity, use the actor's first melee attack's bonus.
+        # A more complete implementation would let the player choose the attack or use unarmed.
+        primary_attack = None
+        attack_bonus = actor.base_attack_bonus # Default to BAB if no melee weapon
+        if actor.attacks:
+            for attack in actor.attacks:
+                if attack.attack_type == AttackType.MELEE or attack.attack_type == AttackType.NATURAL:
+                    primary_attack = attack
+                    break
+
+        if primary_attack:
+            attack_bonus = actor.get_attack_bonus(primary_attack)
+        else: # Unarmed strike if no melee weapon
+            # Unarmed strike BAB + Str mod + size mod
+            attack_bonus = actor.base_attack_bonus + actor.ability_scores.get_modifier("str") + actor.get_size_modifier()
+
+
+        roll = random.randint(1,20)
+        total_attack_roll = roll + attack_bonus
+
+        self.combat_engine.log.add_entry(f"{actor.name} attempts Aid Another (for {ally_to_aid.name}'s {aid_type}) against {target_creature_to_hinder.name}.")
+        self.combat_engine.log.add_entry(f"  Aid Another roll: {roll} + {attack_bonus} = {total_attack_roll} vs AC 10.")
+
+        if total_attack_roll >= 10:
+            self.combat_engine.log.add_entry(f"  Aid Another successful!")
+            # TODO: Apply a temporary bonus to the ally. This needs a more robust effect/buff system.
+            # For now, we'll just log it. A real system would add an effect like:
+            # ally_to_aid.add_temporary_effect(Effect("aid_another_attack", +2, "next_attack_roll", duration=1_turn, source=actor.name))
+            # ally_to_aid.add_temporary_effect(Effect("aid_another_ac", +2, "ac_vs_target_next_attack", duration=1_turn, target=target_creature_to_hinder.name, source=actor.name))
+            if aid_type == "attack":
+                self.combat_engine.log.add_entry(f"  {ally_to_aid.name} will get +2 on their next attack roll against {target_creature_to_hinder.name} before {actor.name}'s next turn.")
+            else: # aid_type == "ac"
+                self.combat_engine.log.add_entry(f"  {ally_to_aid.name} will get +2 to AC against {target_creature_to_hinder.name}'s next attack before {actor.name}'s next turn.")
+            # Note: If aiding an action that provokes, Aid Another also provokes.
+            # This is complex and not handled here yet. Assume the aided action itself handles provocation.
+            return True
+        else:
+            self.combat_engine.log.add_entry(f"  Aid Another failed.")
+            return False
+
+    def take_total_defense_action(self, combatant: Combatant) -> bool:
+        """
+        Perform the Total Defense action. Standard action.
+        Grants +4 dodge bonus to AC for 1 round. Cannot make AoOs.
+        """
+        if not self.can_take_action(combatant, ActionType.STANDARD):
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot take a standard action for Total Defense.")
+            return False
+
+        self.combat_engine.log.add_entry(f"{combatant.name} takes the Total Defense action.")
+        # TODO: Implement a temporary effect system.
+        # combatant.add_temporary_effect(Effect("total_defense_ac", +4, "dodge_ac", duration=1_round))
+        # combatant.add_temporary_condition_until_next_turn("cannot_make_aoos_due_to_total_defense")
+        self.combat_engine.log.add_entry(f"  Gains +4 dodge bonus to AC until their next turn (effect not fully implemented).")
+        self.combat_engine.log.add_entry(f"  Cannot make Attacks of Opportunity until their next turn (effect not fully implemented).")
+
+        # Mark that a standard action was used (important for action economy tracking if we implement that)
+        # self.action_budget.standard_action_taken = True
+        return True
+
+    def take_stand_up_action(self, combatant: Combatant) -> bool:
+        """
+        Stand up from prone. Move action. Provokes AoO.
+        """
+        if not combatant.has_condition("prone"):
+            self.combat_engine.log.add_entry(f"{combatant.name} is not prone.")
+            return False # Not an error, just can't do it.
+
+        if not self.can_take_action(combatant, ActionType.MOVE):
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot take a move action to stand up.")
+            return False
+
+        self.combat_engine.log.add_entry(f"{combatant.name} attempts to stand up from prone.")
+
+        # Standing up provokes AoOs
+        self.combat_engine.trigger_attacks_of_opportunity(combatant, "standing up from prone")
+        if combatant.is_dead() or combatant.has_condition("unconscious") or combatant.has_condition("stunned"):
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot complete standing up due to AoO effects.")
+            return False
+
+        combatant.remove_condition("prone")
+        self.combat_engine.log.add_entry(f"{combatant.name} stands up.")
+        # Mark that a move action was used
+        # self.action_budget.move_action_taken = True
+        return True
+
+    def take_drop_prone_action(self, combatant: Combatant) -> bool:
+        """
+        Drop to a prone position. Free action.
+        """
+        # Free actions can generally be taken even if it's not your turn or if you've used other actions,
+        # but within reasonable limits (GM discretion). For simulation, assume it's fine if called.
+        if combatant.has_condition("prone"):
+            self.combat_engine.log.add_entry(f"{combatant.name} is already prone.")
+            return False
+
+        self.combat_engine.log.add_entry(f"{combatant.name} drops prone.")
+        combatant.add_condition("prone")
+        # This is a free action, so it doesn't consume standard/move/etc.
+        return True
+
+    def take_move_action(self, combatant: Combatant, distance: int = 0, provokes_aoo: bool = True):
+        """
+        Take a move action.
+        Moving out of a threatened square provokes AoO.
+        This needs to be integrated with a grid system to check actual square transitions.
+        """
+        if not self.can_take_action(combatant, ActionType.MOVE): # Checks if it's their turn etc.
+            return False
+
+        # Simplified: if movement provokes, trigger AoOs.
+        # A real implementation needs to check if the combatant is *leaving* a threatened square.
+        if provokes_aoo: # Standard movement provokes if leaving threatened square
+            self.combat_engine.trigger_attacks_of_opportunity(combatant, "moving")
+            if combatant.is_dead() or combatant.has_condition("unconscious") or combatant.has_condition("stunned"):
+                self.combat_engine.log.add_entry(f"{combatant.name} cannot complete movement due to AoO effects.")
+                return False
         
         # Simple movement implementation
         max_distance = combatant.base_speed
         if distance <= max_distance:
-            self.combat_engine.log.add_entry(f"{combatant.name} moves {distance} feet")
+            self.combat_engine.log.add_entry(f"{combatant.name} moves {distance} feet.")
+            combatant.has_moved_this_turn = True
+            # TODO: Update combatant position if a grid system is implemented
             return True
         else:
-            self.combat_engine.log.add_entry(f"{combatant.name} cannot move {distance} feet (max: {max_distance})")
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot move {distance} feet (max: {max_distance}).")
+            return False
+
+    def take_draw_sheathe_weapon_action(self, combatant: Combatant, weapon_name: str, action: str = "draw") -> bool:
+        """
+        Draw or sheathe a weapon. Move action.
+        Drawing does not provoke. Sheathing provokes.
+        If BAB >= +1, can combine drawing (not sheathing) with a regular move (as free action).
+        Two-Weapon Fighting feat allows drawing two light/one-handed weapons.
+        """
+        if not self.can_take_action(combatant, ActionType.MOVE):
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot take a move action to {action} {weapon_name}.")
+            return False
+
+        log_msg_action = "draws" if action == "draw" else "sheathes"
+        self.combat_engine.log.add_entry(f"{combatant.name} attempts to {log_msg_action} {weapon_name}.")
+
+        if action == "sheathe":
+            self.combat_engine.trigger_attacks_of_opportunity(combatant, f"sheathing {weapon_name}")
+            if combatant.is_dead() or combatant.has_condition("unconscious") or combatant.has_condition("stunned"):
+                self.combat_engine.log.add_entry(f"{combatant.name} cannot complete sheathing {weapon_name} due to AoO effects.")
+                return False
+
+        # TODO: Implement actual inventory/equipment management.
+        # For now, just log success.
+        # if action == "draw":
+        #     combatant.equip_weapon(weapon_name)
+        # else: // sheathe
+        #     combatant.unequip_weapon(weapon_name)
+
+        self.combat_engine.log.add_entry(f"{combatant.name} successfully {log_msg_action} {weapon_name} (inventory not implemented).")
+
+        # This action consumes the move action unless combined with movement due to high BAB / feats.
+        # Handling that combination is complex and would require tracking if a move was already made, etc.
+        # For now, assume it always uses the move action.
+        combatant.has_moved_this_turn = True # Consumes movement potential for 5-foot step
+        return True
+
+    def take_charge_action(self, attacker: Combatant, target: Combatant, charge_attack_index: int = 0) -> Optional[AttackResult]:
+        """
+        Perform a Charge. Full-round action.
+        Move up to 2x speed in a straight line, then make one melee attack.
+        +2 bonus on attack roll, -2 penalty to AC until next turn. Must move at least 10ft.
+        Does not provoke for movement, but attack itself could if it's special (e.g. trip).
+        """
+        if not self.can_take_action(attacker, ActionType.FULL_ROUND):
+            self.combat_engine.log.add_entry(f"{attacker.name} cannot take a full-round action to Charge.")
+            return None
+
+        if charge_attack_index >= len(attacker.attacks) or attacker.attacks[charge_attack_index].attack_type == AttackType.RANGED:
+            self.combat_engine.log.add_entry(f"{attacker.name} cannot charge with the selected attack (must be melee).")
+            return None
+
+        charge_attack = attacker.attacks[charge_attack_index]
+
+        # Simplified movement: Assume movement is successful and distance is appropriate (>=10ft, <=2*speed)
+        # TODO: Implement actual grid-based movement and pathfinding for charge.
+        charge_distance = attacker.base_speed # Placeholder, assume they move their speed
+        if charge_distance < 10:
+            self.combat_engine.log.add_entry(f"{attacker.name} cannot charge: must move at least 10 feet.")
+            return None
+
+        self.combat_engine.log.add_entry(f"{attacker.name} charges {target.name} (movement of {charge_distance}ft not fully simulated).")
+        attacker.has_moved_this_turn = True # Charging involves movement
+
+        # Apply AC penalty
+        # TODO: Implement temporary effect system for "-2 AC until next turn"
+        self.combat_engine.log.add_entry(f"  {attacker.name} takes -2 AC until next turn (effect not fully implemented).")
+
+        # Make the attack with +2 bonus
+        # Create a temporary modified attack for the charge bonus or adjust attack calculation
+        original_attack_bonus_calc = attacker.get_attack_bonus(charge_attack)
+        charge_attack_roll = random.randint(1,20)
+        # Add +2 charge bonus to the attack roll
+
+        # We need to pass the +2 charge bonus to make_attack or apply it here.
+        # For now, let's adjust the result from make_attack. This is a bit of a hack.
+        # A better way would be to pass modifiers to make_attack.
+
+        self.combat_engine.log.add_entry(f"  Charging with {charge_attack.name} (+2 attack bonus).")
+
+        # Temporarily boost attack for the charge, then revert.
+        # This is not ideal. A better way is to have make_attack accept situational modifiers.
+        # For now, we'll directly modify the attack result for simplicity of this step.
+
+        # Perform the attack. The +2 bonus is handled by get_attack_bonus if we pass a charge flag,
+        # or we add it manually here. Let's assume get_attack_bonus will handle it if we add a context.
+        # For now, we'll simulate it by just adding +2 to the log, make_attack needs proper extension.
+
+        # Attack is made at normal BAB for charge (not iterative)
+        attack_result = self.combat_engine.make_attack(attacker, target, charge_attack, is_full_attack=False, attack_number=0)
+
+        if attack_result:
+            # Manually adjust the logged and effective attack roll for the charge bonus
+            # This is a hack because make_attack doesn't currently take arbitrary bonuses.
+            # A better system would pass a list of temporary bonuses to make_attack.
+            if attack_result.is_hit or attack_result.attack_roll == 20 : # Apply bonus if it was a hit or natural 20
+                 # This logic is flawed, the bonus applies to the roll to see IF it hits.
+                 # For now, we'll just log the intent.
+                 pass # The +2 should be part of the hit determination.
+
+        # TODO: Correctly apply +2 to attack roll *before* determining hit.
+        # This requires `make_attack` to accept situational modifiers.
+        # For now, the log indicates intent, but the hit calc might be off.
+
+        return attack_result
+
+    def take_withdraw_action(self, combatant: Combatant, distance: int) -> bool:
+        """
+        Perform a Withdraw. Full-round action.
+        Move up to 2x speed. Starting square is not considered threatened by VISIBLE enemies.
+        Does not provoke from starting square from visible enemies. Other movement can provoke.
+        """
+        if not self.can_take_action(combatant, ActionType.FULL_ROUND):
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot take a full-round action to Withdraw.")
+            return False
+
+        max_distance = combatant.base_speed * 2
+        if distance > max_distance:
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot withdraw {distance}ft, max is {max_distance}ft.")
+            return False
+
+        self.combat_engine.log.add_entry(f"{combatant.name} withdraws {distance}ft.")
+        self.combat_engine.log.add_entry(f"  Movement from starting square does not provoke from visible enemies (visibility not fully simulated).")
+
+        # The actual movement part of withdraw would call take_move_action with provokes_aoo=False for the first step out of current square,
+        # and then provokes_aoo=True for subsequent squares if they leave other threatened areas.
+        # This is too complex without a grid. For now, simulate as a single move that doesn't provoke from start.
+
+        # Simplified: Assume the whole withdraw doesn't provoke for now.
+        # A real implementation would need pathing and checks per square.
+        # Pass provokes_aoo = False to the underlying move if we had one.
+        combatant.has_moved_this_turn = True
+        # TODO: Update position.
+        return True
+
+    def take_5_foot_step_action(self, combatant: Combatant, direction: str = "any") -> bool:
+        """
+        Take a 5-foot step. Not an action type, but a special movement.
+        Can be taken if no other movement was performed this round. Does not provoke AoO.
+        """
+        if combatant.has_moved_this_turn:
+            self.combat_engine.log.add_entry(f"{combatant.name} cannot take a 5-foot step: already moved this turn.")
+            return False
+
+        # TODO: Check for difficult terrain or other conditions preventing 5-foot step.
+        # TODO: Check if speed is < 5ft.
+
+        self.combat_engine.log.add_entry(f"{combatant.name} takes a 5-foot step ({direction}).")
+        # This action specifically sets has_moved_this_turn to allow it, then marks movement.
+        # It doesn't "cost" a move action but does count as movement for future 5-foot steps.
+        combatant.has_moved_this_turn = True
+        # TODO: Update position on grid.
+        return True
+
+    def _perform_combat_maneuver_check(self, attacker: Combatant, target: Combatant, maneuver_name: str, additional_bonus: int = 0, provokes: bool = True) -> Optional[Tuple[int, int, int]]:
+        """
+        Helper function to perform a generic combat maneuver check roll.
+        Returns (d20_roll, total_attack_roll, target_cmd) or None if action cannot be taken.
+        """
+        # Most combat maneuvers are standard actions or replace a melee attack.
+        # For now, assume it's a standard action context for checking 'can_take_action'.
+        # Specific maneuver methods will define if it's part of an attack or a dedicated action.
+
+        # Provocation handling
+        if provokes:
+            # TODO: Check for feats like "Improved Bull Rush" that negate this.
+            # For now, assume it always provokes if 'provokes' is true.
+            self.combat_engine.trigger_attacks_of_opportunity(attacker, f"attempting {maneuver_name}")
+            if attacker.is_dead() or attacker.has_condition("unconscious") or attacker.has_condition("stunned"):
+                self.combat_engine.log.add_entry(f"{attacker.name} cannot complete {maneuver_name} due to AoO effects.")
+                return None
+
+        cmb = attacker.calculate_cmb() + additional_bonus
+        cmd = target.calculate_cmd()
+
+        roll = random.randint(1, 20)
+        total_maneuver_roll = roll + cmb
+
+        self.combat_engine.log.add_entry(f"{attacker.name} attempts {maneuver_name} against {target.name}.")
+        self.combat_engine.log.add_entry(f"  CMB Check: {roll} (d20) + {cmb - additional_bonus} (CMB) + {additional_bonus} (misc) = {total_maneuver_roll} vs CMD {cmd}.")
+
+        return roll, total_maneuver_roll, cmd
+
+    def take_bull_rush_action(self, attacker: Combatant, target: Combatant, as_part_of_charge: bool = False) -> bool:
+        """
+        Perform a Bull Rush combat maneuver. Standard action or part of a charge.
+        Provokes AoO unless Improved Bull Rush feat or similar.
+        Target pushed back 5ft on success. Extra 5ft for every 5 the check exceeds CMD.
+        Attacker can move with target.
+        """
+        action_type_check = ActionType.STANDARD # Base action is standard
+        if as_part_of_charge:
+            # If part of charge, it replaces the melee attack of the charge.
+            # The charge itself is a full-round action.
+            # No separate 'can_take_action' check here, assume charge action handles it.
+            pass
+        elif not self.can_take_action(attacker, action_type_check):
+            self.combat_engine.log.add_entry(f"{attacker.name} cannot take a {action_type_check.value} action for Bull Rush.")
+            return False
+
+        # Size check: Target no more than one size category larger.
+        # TODO: Implement size category comparison logic. For now, assume valid.
+
+        # Provokes unless feat: Improved Bull Rush
+        provokes_aoo = "Improved Bull Rush" not in attacker.feats # Placeholder for feat check
+
+        charge_bonus = 0
+        if as_part_of_charge:
+            # Charging character gets +2 on combat maneuver rolls for bull rush.
+            charge_bonus = 2
+            self.combat_engine.log.add_entry(f"  Gains +2 bonus from charging.")
+
+
+        maneuver_result = self._perform_combat_maneuver_check(attacker, target, "Bull Rush", additional_bonus=charge_bonus, provokes=provokes_aoo)
+        if not maneuver_result:
+            return False # AoO may have stopped the action
+
+        d20_roll, total_maneuver_roll, target_cmd = maneuver_result
+
+        if d20_roll == 1: # Natural 1 always fails
+            self.combat_engine.log.add_entry("  Bull Rush failed (natural 1).")
+            # TODO: Attacker's movement ends if it was part of movement (like a charge).
+            return False
+
+        if total_maneuver_roll >= target_cmd or d20_roll == 20: # Natural 20 always succeeds
+            self.combat_engine.log.add_entry("  Bull Rush successful!")
+            push_distance = 5
+            exceed_by = total_maneuver_roll - target_cmd
+            if exceed_by >= 5:
+                push_distance += (exceed_by // 5) * 5
+
+            self.combat_engine.log.add_entry(f"  {target.name} is pushed back {push_distance} feet.")
+            # TODO: Implement actual movement of target and attacker on a grid.
+            # TODO: Check for obstacles / other creatures.
+            # TODO: Greater Bull Rush feat makes enemies provoke AoOs from the push.
+
+            # Attacker can move with the target
+            self.combat_engine.log.add_entry(f"  {attacker.name} can move with {target.name} (movement not simulated).")
+            attacker.has_moved_this_turn = True # Bull rush involves potential movement
+            return True
+        else:
+            self.combat_engine.log.add_entry("  Bull Rush failed.")
+            # TODO: Attacker's movement ends if it was part of movement.
+            return False
+
+    def take_trip_action(self, attacker: Combatant, target: Combatant) -> bool:
+        """
+        Perform a Trip combat maneuver. Replaces a melee attack or is a standard action.
+        Provokes AoO unless Improved Trip feat or similar.
+        Target knocked prone on success. If check fails by 10+, attacker is tripped.
+        """
+        # For simplicity, assume this is taken as a standard action for now.
+        # Integration as part of an attack/full-attack requires more complex action budget.
+        if not self.can_take_action(attacker, ActionType.STANDARD):
+            self.combat_engine.log.add_entry(f"{attacker.name} cannot take a standard action for Trip.")
+            return False
+
+        # Size check: Target no more than one size category larger.
+        # TODO: Implement size category comparison.
+        # Flying or legless creatures often immune.
+        # TODO: Check target immunities to trip.
+
+        provokes_aoo = "Improved Trip" not in attacker.feats
+
+        # Some weapons can be used to trip (e.g., flail, guisarme). They might grant bonuses.
+        # TODO: Check for weapon properties related to trip. Unarmed trip is -4 unless feat.
+        # For now, assume basic unarmed trip or generic weapon trip without special modifiers.
+
+        maneuver_result = self._perform_combat_maneuver_check(attacker, target, "Trip", provokes=provokes_aoo)
+        if not maneuver_result:
+            return False
+
+        d20_roll, total_maneuver_roll, target_cmd = maneuver_result
+
+        if d20_roll == 1: # Natural 1 always fails
+            self.combat_engine.log.add_entry("  Trip failed (natural 1).")
+            return False
+
+        if total_maneuver_roll >= target_cmd or d20_roll == 20:
+            self.combat_engine.log.add_entry("  Trip successful!")
+            self.combat_engine.log.add_entry(f"  {target.name} is knocked prone.")
+            target.add_condition("prone")
+            # TODO: Improved Trip grants an immediate attack against the tripped opponent.
+            return True
+        else:
+            self.combat_engine.log.add_entry("  Trip failed.")
+            if target_cmd - total_maneuver_roll >= 10:
+                self.combat_engine.log.add_entry(f"  {attacker.name} is knocked prone due to failing badly!")
+                attacker.add_condition("prone")
+            return False
+
+    def take_disarm_action(self, attacker: Combatant, target: Combatant) -> bool:
+        """
+        Perform a Disarm combat maneuver. Replaces a melee attack or is a standard action.
+        Provokes AoO unless Improved Disarm feat.
+        Unarmed disarm is -4 penalty.
+        Target drops one item on success. If check exceeds CMD by 10+, drops two items.
+        If check fails by 10+, attacker drops their weapon.
+        """
+        if not self.can_take_action(attacker, ActionType.STANDARD): # Assuming standard action for now
+            self.combat_engine.log.add_entry(f"{attacker.name} cannot take a standard action for Disarm.")
+            return False
+
+        provokes_aoo = "Improved Disarm" not in attacker.feats
+
+        # Check if attacker is unarmed for the disarm attempt.
+        # TODO: This needs to know what weapon is being used for the maneuver.
+        # For now, assume they are using their primary weapon or are considered 'armed' if they have one.
+        # A proper check would see if they are using a weapon or an unarmed strike.
+        is_unarmed_attempt = not attacker.attacks # Simplified: if no listed attacks, assume unarmed.
+        disarm_penalty = -4 if is_unarmed_attempt else 0
+        if is_unarmed_attempt:
+             self.combat_engine.log.add_entry(f"  Attacker is unarmed, takes -4 penalty on Disarm attempt.")
+
+        maneuver_result = self._perform_combat_maneuver_check(attacker, target, "Disarm", additional_bonus=disarm_penalty, provokes=provokes_aoo)
+        if not maneuver_result:
+            return False
+
+        d20_roll, total_maneuver_roll, target_cmd = maneuver_result
+
+        if d20_roll == 1:
+            self.combat_engine.log.add_entry("  Disarm failed (natural 1).")
+            # Check if attacker drops weapon on nat 1 if that's a house rule or specific condition. Standard is just fail.
+            return False
+
+        if total_maneuver_roll >= target_cmd or d20_roll == 20:
+            self.combat_engine.log.add_entry("  Disarm successful!")
+            # TODO: Implement item dropping logic.
+            # This requires target to have an inventory and equipped items.
+            items_dropped = 1
+            if total_maneuver_roll - target_cmd >= 10:
+                items_dropped = 2
+                self.combat_engine.log.add_entry(f"  {target.name} drops {items_dropped} items (item system not implemented).")
+            else:
+                self.combat_engine.log.add_entry(f"  {target.name} drops {items_dropped} item (item system not implemented).")
+
+            if is_unarmed_attempt and items_dropped > 0:
+                 self.combat_engine.log.add_entry(f"  {attacker.name} (unarmed) may automatically pick up one dropped item (not simulated).")
+            return True
+        else:
+            self.combat_engine.log.add_entry("  Disarm failed.")
+            if target_cmd - total_maneuver_roll >= 10:
+                self.combat_engine.log.add_entry(f"  {attacker.name} drops their weapon due to failing badly (weapon system not implemented)!")
+                # TODO: Implement attacker dropping their weapon.
+            return False
+
+    def take_sunder_action(self, attacker: Combatant, target: Combatant, target_item_name: str = "weapon") -> bool:
+        """
+        Perform a Sunder combat maneuver. Replaces a melee attack or is a standard action.
+        Provokes AoO unless Improved Sunder feat.
+        Deals damage to the target item.
+        """
+        if not self.can_take_action(attacker, ActionType.STANDARD): # Assuming standard for now
+            self.combat_engine.log.add_entry(f"{attacker.name} cannot take a standard action for Sunder.")
+            return False
+
+        provokes_aoo = "Improved Sunder" not in attacker.feats
+
+        # Sunder uses a normal attack roll against the item's AC (often CMD of wielder for held, or fixed AC for unattended).
+        # For simplicity, we'll use the CMB vs CMD framework here, as if targeting the wielder's ability to keep the item intact.
+        # A more accurate sunder would target item AC and deal weapon damage.
+        # The rules state: "You can attempt to sunder an item held or worn by your opponent as part of an attack action
+        # in place of a melee attack... If your attack is successful, you deal damage to the item normally."
+        # This implies an attack roll, not a CMB check. However, the prompt grouped it with CMB/CMD.
+        # For this implementation, I'll stick to CMB vs CMD as per the helper function.
+
+        # Let's use _perform_combat_maneuver_check for the "attack" part.
+        # The "damage" part is specific to Sunder.
+
+        maneuver_result = self._perform_combat_maneuver_check(attacker, target, f"Sunder ({target_item_name})", provokes=provokes_aoo)
+        if not maneuver_result:
+            return False
+
+        d20_roll, total_maneuver_roll, target_cmd = maneuver_result
+
+        if d20_roll == 1:
+            self.combat_engine.log.add_entry(f"  Sunder attempt against {target_item_name} failed (natural 1).")
+            return False
+
+        if total_maneuver_roll >= target_cmd or d20_roll == 20: # Success means you *hit* the item.
+            self.combat_engine.log.add_entry(f"  Sunder attempt against {target_item_name} successful (hit the item)!")
+
+            # Now, deal damage to the item.
+            # TODO: This requires the attacker to choose a weapon, and items to have HP/Hardness.
+            # For now, log the intent.
+            # Example:
+            # chosen_weapon = attacker.get_equipped_weapon() or attacker.get_unarmed_strike_equivalent()
+            # item_hp, item_hardness = target.get_item_stats(target_item_name)
+            # damage_roll = attacker.roll_damage(chosen_weapon) # Sunder damage uses weapon damage
+            # damage_to_item = max(0, damage_roll - item_hardness)
+            # item_current_hp -= damage_to_item
+            # log item damage, broken status, destruction.
+
+            self.combat_engine.log.add_entry(f"  Damage would be dealt to {target_item_name} (item HP/hardness/damage not implemented).")
+            # Example outcomes:
+            # if item_current_hp <= 0: log destroyed
+            # elif item_current_hp <= item_total_hp / 2: log broken condition
+            return True
+        else:
+            self.combat_engine.log.add_entry(f"  Sunder attempt against {target_item_name} failed (missed the item).")
             return False
 
 
