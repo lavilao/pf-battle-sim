@@ -15,8 +15,10 @@ Following SOLID principles:
 
 import os
 from typing import Optional, List, Dict
-from pathfinder_simulator import Combatant, MonsterDatabase
-from pmd_integration import PMDIntegrator
+# Corrected import: Combatant and MonsterDatabase are in .core
+from .core import Combatant, MonsterDatabase
+# Assuming pmd_integration is at the same level as this file or correctly in PYTHONPATH
+from .pmd_integration import PMDIntegrator
 
 
 class EnhancedMonsterDatabase(MonsterDatabase):
