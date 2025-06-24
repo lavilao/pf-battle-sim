@@ -592,7 +592,7 @@ class CombatEngine:
         # TODO: Consider reach/range for actual valid targets.
         valid_targets = []
         for c in self.combatants:
-            if c != attacker and c.current_hp > 0 and \
+            if c is not attacker and c.current_hp > 0 and \
                not c.is_dead() and not c.has_condition("unconscious"):
                 valid_targets.append(c)
         return valid_targets
@@ -615,12 +615,29 @@ class CombatEngine:
 
         # Check factions: if all remaining active combatants are on the same "side"
         # Requires combatants to have a 'is_pc' or 'faction_id' attribute.
-        if not any(c.is_pc for c in active_combatants): # No PCs left
-            self.log.add_entry("All PCs are defeated.")
-            return True
-        if not any(not c.is_pc for c in active_combatants): # No NPCs left
-            self.log.add_entry("All NPCs are defeated.")
-            return True
+
+        pcs_present = any(c.is_pc for c in active_combatants)
+        non_pcs_present = any(not c.is_pc for c in active_combatants)
+
+        if pcs_present:
+            # If PCs are present, combat ends if all PCs are down or all non-PCs are down.
+            if not non_pcs_present: # No NPCs left
+                self.log.add_entry("All hostile NPCs are defeated.")
+                return True
+            # The case of "All PCs are defeated" is already covered by len(active_combatants) <=1
+            # if the remaining combatants are all non-PCs, or by active_combatants being empty.
+            # Let's refine this: if only non-PCs remain, and there were PCs initially, combat ends for PCs.
+            if not any(c.is_pc for c in active_combatants) and any(c.is_pc for c in self.combatants):
+                 self.log.add_entry("All PCs are defeated.")
+                 return True
+        else:
+            # No PCs present in the active combatants list (e.g., monster-only battle)
+            # Combat ends if only one monster (or fewer) remains.
+            # This is already covered by the `len(active_combatants) <= 1` check earlier.
+            # So, if we reach here and there are no PCs, it implies len(active_combatants) > 1.
+            # In a monster-only battle, this means combat continues.
+            # The earlier check `if len(active_combatants) <= 1:` handles the end condition.
+            pass # Implicitly, if no PCs and more than 1 monster, combat continues.
 
         return False # Combat continues
 

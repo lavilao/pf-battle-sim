@@ -16,7 +16,10 @@ import random # Moved import to top level
 
 # Assuming tests are run from the root directory where `src` is visible,
 # or pytest handles path resolution for the src layout.
-from pathfinder_combat_simulator import (
+# Add project root to path if tests are run from 'tests' directory
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from src.pathfinder_combat_simulator import (
     Combatant, CombatEngine, ActionHandler, Attack, DamageType
 )
 
@@ -251,6 +254,119 @@ class TestAttackResolution(unittest.TestCase):
             self.assertEqual(self.target.current_hp, initial_hp - expected_damage)
         finally:
             random.randint = original_randint
+
+
+class TestMonsterOnlyCombat(unittest.TestCase):
+    """Test combat scenarios involving only monsters."""
+
+    def setUp(self):
+        """Set up test fixtures for monster-only combat."""
+        self.combat_engine = CombatEngine()
+        self.action_handler = ActionHandler(self.combat_engine)
+
+        # Create monster combatants
+        self.orc1 = self._create_monster("Orc Warrior 1", hp=15)
+        self.orc2 = self._create_monster("Orc Warrior 2", hp=15)
+        self.goblin1 = self._create_monster("Goblin Scamp", hp=7, bab=0, damage_dice="1d4")
+
+    def _create_monster(self, name, hp=10, bab=1, damage_dice="1d8", con=12, strength=14, dexterity=10):
+        monster = Combatant(name, is_pc=False)
+        monster.max_hp = hp
+        monster.current_hp = hp
+        monster.ability_scores.constitution = con
+        monster.ability_scores.strength = strength
+        monster.ability_scores.dexterity = dexterity
+        monster.base_attack_bonus = bab
+
+        attack_weapon = Attack(
+            name="Claws" if damage_dice == "1d4" else "Battleaxe", # Generic weapon name
+            damage_dice=damage_dice,
+            critical_threat_range="20",
+            critical_multiplier="x2",
+            damage_type=DamageType.SLASHING
+        )
+        monster.attacks.append(attack_weapon)
+        monster.initiative_modifier = monster.ability_scores.get_modifier("dexterity")
+        return monster
+
+    def test_combat_ends_one_monster_left(self):
+        """Test that combat ends when only one monster remains in a monster-only battle."""
+        self.combat_engine.add_combatant(self.orc1, is_aware=True)
+        self.combat_engine.add_combatant(self.orc2, is_aware=True)
+        self.combat_engine.start_combat()
+
+        # Simulate orc1 defeating orc2
+        # For simplicity, directly set orc2's HP to be defeated
+        self.orc2.current_hp = -self.orc2.ability_scores.get_total_score("constitution") # Dead
+        self.orc2.add_condition("dead")
+
+
+        # Check combat end condition
+        # Need to advance turns or directly call is_combat_over
+        # Advancing a turn should trigger the check if get_current_combatant finds no one or combat ends
+        self.combat_engine.advance_turn() # Process current turn
+        if self.combat_engine.combat_active: # If combat didn't end after first turn processing
+            self.combat_engine.advance_turn() # Process next turn (if any)
+
+        self.assertTrue(self.combat_engine.is_combat_over(),
+                        f"Combat should be over. Log: {self.combat_engine.log.get_full_log()}")
+
+        remaining_active = [c for c in self.combat_engine.combatants if c.current_hp > 0 and not c.is_dead()]
+        self.assertEqual(len(remaining_active), 1, "Exactly one monster should remain active.")
+        self.assertEqual(remaining_active[0].name, self.orc1.name, "Orc1 should be the survivor.")
+
+    def test_monsters_attack_each_other(self):
+        """Test that monsters attack each other in a monster-only battle and combat proceeds."""
+        self.combat_engine.add_combatant(self.orc1, is_aware=True)
+        self.combat_engine.add_combatant(self.goblin1, is_aware=True)
+        self.combat_engine.start_combat()
+
+        initial_orc1_hp = self.orc1.current_hp
+        initial_goblin1_hp = self.goblin1.current_hp
+
+        max_turns = 10 # Safety break for the test loop
+        turns_taken = 0
+
+        # Simplified AI: current combatant attacks the other living monster
+        while self.combat_engine.combat_active and turns_taken < max_turns:
+            current_combatant = self.combat_engine.get_current_combatant()
+            if not current_combatant:
+                break # Should be caught by is_combat_over
+
+            targets = self.combat_engine.get_valid_targets(current_combatant)
+
+            if targets and current_combatant.attacks:
+                # NPCs target other NPCs (first available for simplicity in test)
+                non_pc_targets = [t for t in targets if not t.is_pc]
+                if non_pc_targets:
+                    target = non_pc_targets[0]
+                    self.action_handler.take_attack_action(current_combatant, target, 0)
+                else:
+                    # This case shouldn't happen in a 2-monster battle if one is still up
+                    self.combat_engine.log.add_entry(f"{current_combatant.name} has no valid non-PC targets.")
+            else:
+                self.combat_engine.log.add_entry(f"{current_combatant.name} has no valid actions or targets.")
+
+            self.combat_engine.advance_turn()
+            turns_taken += 1
+            if self.combat_engine.is_combat_over():
+                self.combat_engine.end_combat() # Ensure combat ends if conditions met
+                break
+
+        self.assertTrue(turns_taken > 0, "Combat should have proceeded for at least one turn.")
+        self.assertTrue(self.combat_engine.is_combat_over(),
+                        f"Combat should be over after monsters fight. Log: {self.combat_engine.log.get_full_log()}")
+
+        # Check that some damage was dealt (i.e., attacks happened)
+        # This is a loose check; one might be defeated very quickly.
+        orc1_hp_changed = self.orc1.current_hp < initial_orc1_hp
+        goblin1_hp_changed = self.goblin1.current_hp < initial_goblin1_hp
+        self.assertTrue(orc1_hp_changed or goblin1_hp_changed,
+                        "At least one monster should have taken damage, indicating they attacked each other.")
+
+        remaining_active = [c for c in self.combat_engine.combatants if c.current_hp > 0 and not c.is_dead()]
+        self.assertEqual(len(remaining_active), 1,
+                         f"Exactly one monster should remain active. Survivors: {[r.name for r in remaining_active]}. Log: {self.combat_engine.log.get_full_log()}")
 
 
 if __name__ == '__main__':

@@ -15,9 +15,12 @@ from pathlib import Path
 # Import the modules we'll be testing
 # Assuming tests are run from the root directory where `src` is visible,
 # or pytest handles path resolution for the src layout.
-from pathfinder_combat_simulator import Combatant, MonsterDatabase
-from pathfinder_combat_simulator.pmd_integration import PMDIntegrator, PMDDataConverter # PMDDataConverter might be needed for some tests if they were using it directly from pmd_integration
-from pathfinder_combat_simulator.enhanced_monster_database import EnhancedMonsterDatabase
+import sys # Added for path modification
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # Added
+
+from src.pathfinder_combat_simulator import Combatant, MonsterDatabase
+from src.pathfinder_combat_simulator.pmd_integration import PMDIntegrator, PMDDataConverter # PMDDataConverter might be needed for some tests if they were using it directly from pmd_integration
+from src.pathfinder_combat_simulator.enhanced_monster_database import EnhancedMonsterDatabase
 
 
 class TestPMDIntegration(unittest.TestCase):
