@@ -4,15 +4,18 @@ Pathfinder 1e Battle Simulator - Command Line Interface
 Interactive CLI for running combat encounters
 """
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import sys # Keep sys for potential exit() calls, though not currently used directly
+import os # Keep os for potential path operations if needed later, though not for sys.path
 
-from pathfinder_simulator import (
+# sys.path.append(os.path.dirname(os.path.abspath(__file__))) # No longer needed if run as module
+
+# Corrected imports to use the .core subpackage
+from .core import (
     Combatant, Attack, DamageType, MonsterDatabase, 
     CombatEngine, ActionHandler, ActionType
 )
-
+# Note: pmd_integration import will be handled separately if it's within this file.
+# Looking at the file content, pmd_integration is imported later dynamically.
 
 class PathfinderCLI:
     """Command line interface for the Pathfinder Battle Simulator"""
@@ -526,7 +529,7 @@ class PathfinderCLI:
             print("Invalid name.")
             return
         
-        from pmd_integration import create_pmd_integrator
+        from .pmd_integration import create_pmd_integrator # Changed to relative import
         integrator = create_pmd_integrator()
         
         try:
