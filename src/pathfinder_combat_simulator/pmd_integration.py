@@ -24,7 +24,8 @@ from typing import Dict, List, Optional, Any
 from urllib.parse import quote
 
 # Import PMD modules
-from pathfinder_simulator import Combatant, MonsterDatabase, DamageType
+# Corrected imports: these are now in .core
+from .core import Combatant, MonsterDatabase, DamageType
 # PMD is now a submodule, direct/relative imports should work if src is in PYTHONPATH
 # from .pmd.main import parsePage # This will be used later in the code
 
