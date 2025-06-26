@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window"]
+  },
+  "lint": {
+    "files": {
+      "include": ["src/", "tests/"],
+      "exclude": ["src/pathfinder_combat_simulator/pmd/"]
+    },
+    "rules": {
+      "tags": ["recommended"],
+      "include": [],
+      "exclude": []
+    }
+  },
+  "fmt": {
+    "files": {
+      "include": ["src/", "tests/"],
+      "exclude": ["src/pathfinder_combat_simulator/pmd/"]
+    },
+    "options": {
+      "useTabs": false,
+      "lineWidth": 80,
+      "indentWidth": 2,
+      "singleQuote": false
+    }
+  },
+  "tasks": {
+    "start": "deno run --allow-read --allow-net src/main.ts",
+    "test": "deno test --allow-read --allow-net"
+  }
+}
