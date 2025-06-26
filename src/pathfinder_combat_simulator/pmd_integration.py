@@ -22,6 +22,7 @@ import requests
 import time
 from typing import Dict, List, Optional, Any
 from urllib.parse import quote
+from pathlib import Path
 
 # Import PMD modules
 # Corrected imports: these are now in .core
