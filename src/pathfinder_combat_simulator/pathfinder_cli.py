@@ -533,7 +533,7 @@ class PathfinderCLI:
         print("Downloading monster list...")
         
         downloader = MonsterListDownloader()
-        monsters = downloader.download_monster_list()
+        monsters = downloader.get_available_monsters()
         
         if not monsters:
             print("Failed to download monster list")

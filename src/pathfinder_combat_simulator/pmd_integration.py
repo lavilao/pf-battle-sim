@@ -44,7 +44,7 @@ class MonsterListDownloader:
         # Create cache directory if needed
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-    def refresh_monster_list(self):
+    def download_monster_list(self):
         """Download updated list of all monsters from PMD"""
         # This would make an API call or scrape the PMD index page in real usage
         # For now we'll use a static example list
