@@ -1,4 +1,8 @@
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    raise ImportError("BeautifulSoup4 is required. Install with: pip install beautifulsoup4")
+
 import requests
 import sys
 import traceback
