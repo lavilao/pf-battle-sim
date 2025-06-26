@@ -33,9 +33,13 @@ if __name__ == "__main__":
 		# Parse page
 		soup = BeautifulSoup(html, "html.parser")
 		elems = soup.select("#main table tr td:first-child a")
-		urls = [e['href'].split("=")[0] + "=" + quote(e['href'].split("=")[1], safe='/()') for e in elems]
-		urls = [("" if u.startswith("https://aonprd.com/") else "https://aonprd.com/") + u for u in urls]
-		allurls += urls
+		# Extract monster names from links
+		for e in elems:
+		    href = e['href']
+		    name = href.split("=")[1].replace("+", " ") if "=" in href else href
+		    url = href.split("=")[0] + "=" + quote(href.split("=")[1], safe='/()') if "=" in href else href
+		    full_url = ("" if url.startswith("https://aonprd.com/") else "https://aonprd.com/") + url
+		    allurls.append((name, full_url))
 		
 	# Remove duplicates and sort
 	allurls = sorted(list(set(allurls)))

@@ -506,8 +506,9 @@ class PathfinderCLI:
             print("\n=== Monster Database Management ===")
             print("1. List Monsters")
             print("2. Delete Monster")
-            print("3. Download Monster from PMD")
-            print("4. Back to Main Menu")
+            print("3. Browse Online Monsters")
+            print("4. Download Monster by Name")
+            print("5. Back to Main Menu")
             
             choice = input("Choice: ").strip()
             
@@ -516,12 +517,79 @@ class PathfinderCLI:
             elif choice == "2":
                 self.delete_monster()
             elif choice == "3":
-                self.download_monster_via_pmd()
+                self.browse_online_monsters()
             elif choice == "4":
+                self.download_monster_via_pmd()
+            elif choice == "5":
                 break
             else:
                 print("Invalid choice.")
     
+    def browse_online_monsters(self):
+        """Browse and download monsters from online sources"""
+        from monster_data.download_page_list import MonsterListDownloader
+        
+        print("\n=== Online Monster Browser ===")
+        print("Downloading monster list...")
+        
+        downloader = MonsterListDownloader()
+        monsters = downloader.download_monster_list()
+        
+        if not monsters:
+            print("Failed to download monster list")
+            return
+            
+        page_size = 10
+        current_page = 0
+        total_pages = (len(monsters) // page_size) + 1
+        
+        while True:
+            print(f"\nPage {current_page + 1}/{total_pages}")
+            start_idx = current_page * page_size
+            end_idx = start_idx + page_size
+            
+            for i, (name, url) in enumerate(monsters[start_idx:end_idx], start_idx + 1):
+                print(f"{i}. {name}")
+                
+            print("\nn. Next page | p. Previous page | s. Select monster | q. Quit")
+            choice = input("Choice: ").strip().lower()
+            
+            if choice == 'n' and current_page < total_pages - 1:
+                current_page += 1
+            elif choice == 'p' and current_page > 0:
+                current_page -= 1
+            elif choice == 's':
+                try:
+                    num = int(input("Enter monster number: ").strip()) - 1
+                    if 0 <= num < len(monsters):
+                        name = monsters[num][0]
+                        self._download_and_save_monster(name)
+                    else:
+                        print("Invalid number")
+                except ValueError:
+                    print("Invalid input")
+            elif choice == 'q':
+                break
+            else:
+                print("Invalid choice")
+
+    def _download_and_save_monster(self, monster_name: str):
+        """Helper to handle monster download and saving"""
+        from .pmd_integration import create_pmd_integrator
+        integrator = create_pmd_integrator()
+        
+        try:
+            print(f"\nDownloading {monster_name}...")
+            combatant = integrator.get_or_download_monster(monster_name)
+            if combatant:
+                self.db.save_monster(combatant)
+                print(f"Successfully saved {monster_name}!")
+                self.print_combatant_details(combatant)
+            else:
+                print(f"Failed to download {monster_name}")
+        except Exception as e:
+            print(f"Error downloading monster: {str(e)}")
+
     def download_monster_via_pmd(self):
         """Download a monster from PMD"""
         monster_name = input("\nEnter monster name to download: ").strip()
