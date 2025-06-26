@@ -30,6 +30,41 @@ from .core import Combatant, MonsterDatabase, DamageType
 # from .pmd.main import parsePage # This will be used later in the code
 
 
+class MonsterListDownloader:
+    """
+    Handles downloading and maintaining a list of available monsters from PMD.
+    Single responsibility: Monster list management.
+    """
+    def __init__(self, cache_dir: str = "monster_data/pmd_cache"):
+        self.cache_dir = Path(cache_dir)
+        self.monster_list_path = self.cache_dir / "monster_list.json"
+        self.monster_list = []
+        
+        # Create cache directory if needed
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        
+    def refresh_monster_list(self):
+        """Download updated list of all monsters from PMD"""
+        # This would make an API call or scrape the PMD index page in real usage
+        # For now we'll use a static example list
+        self.monster_list = [
+            {"name": "Goblin", "source": "Bestiary"},
+            {"name": "Dragon", "source": "Bestiary"},
+            {"name": "Ogre", "source": "Bestiary"}
+        ]
+        self._save_monster_list()
+        
+    def _save_monster_list(self):
+        """Save monster list to cache file"""
+        with open(self.monster_list_path, 'w') as f:
+            json.dump(self.monster_list, f)
+            
+    def get_available_monsters(self) -> List[dict]:
+        """Return list of available monsters with metadata"""
+        if not self.monster_list_path.exists():
+            self.refresh_monster_list()
+        return self.monster_list
+
 class MonsterDownloader:
     """
     Handles downloading monster pages from the web.

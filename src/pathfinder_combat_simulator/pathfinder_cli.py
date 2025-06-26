@@ -527,7 +527,7 @@ class PathfinderCLI:
     
     def browse_online_monsters(self):
         """Browse and download monsters from online sources"""
-        from monster_data.download_page_list import MonsterListDownloader
+        from .pmd_integration import MonsterListDownloader
         
         print("\n=== Online Monster Browser ===")
         print("Downloading monster list...")
