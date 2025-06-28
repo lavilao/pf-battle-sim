@@ -12,3 +12,4 @@ wheels/
 
 # Demo data
 demo_monster_data/
+.env
