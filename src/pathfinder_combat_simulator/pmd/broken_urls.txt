@@ -1,9 +1,0 @@
-# ==== REPORTED ISSUES ====
-# Racial Modifier section has a weirdo "Racial Bonus" with no semicolon in the source material. But it's not properly bolded on aonprd
-https://aonprd.com/MonsterDisplay.aspx?ItemName=Sunflower%20Leshy
-# Missing spell-like abilities header (source material has just "Spell-Like Abilities")
-https://aonprd.com/MonsterDisplay.aspx?ItemName=Chortov
-# Says "archlord" instead of "arclord"
-https://aonprd.com/NPCDisplay.aspx?ItemName=Arclord%20of%20Nex
-# Missing 1 for class
-https://aonprd.com/MonsterDisplay.aspx?ItemName=Munavri
