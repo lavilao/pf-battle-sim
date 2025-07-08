@@ -20,9 +20,11 @@ import json
 import re
 import requests
 import time
+import traceback
 from typing import Dict, List, Optional, Any
 from urllib.parse import quote
 from pathlib import Path
+from bs4 import BeautifulSoup
 
 # Import PMD modules
 # Corrected imports: these are now in .core
@@ -46,19 +48,66 @@ class MonsterListDownloader:
 
     def download_monster_list(self):
         """Download updated list of all monsters from PMD"""
-        # This would make an API call or scrape the PMD index page in real usage
-        # For now we'll use a static example list
-        from urllib.parse import quote
+        print("Downloading monster list from online sources...")
 
-        monster_names = ["Goblin", "Dragon", "Ogre"]
+        # URLs to scrape for monsters (based on PMD's download_page_list.py)
+        pagelisturls = [
+            "https://aonprd.com/Monsters.aspx?Letter=All",
+            "https://aonprd.com/NPCs.aspx?SubGroup=All",
+            "https://aonprd.com/MythicMonsters.aspx?Letter=All"
+        ]
+
         self.monster_list = []
 
-        for name in monster_names:
-            # Generate URL for each monster
-            encoded_name = quote(name, safe='/')
-            url = f"https://aonprd.com/MonsterDisplay.aspx?ItemName={encoded_name}"
-            self.monster_list.append((name, url))
+        for url in pagelisturls:
+            try:
+                print(f"Downloading from {url}...")
+                html = requests.get(url, timeout=30).text
 
+                # Parse page using BeautifulSoup
+                soup = BeautifulSoup(html, "html.parser")
+                elems = soup.select("#main table tr td:first-child a")
+
+                for elem in elems:
+                    # Extract monster name and URL
+                    href = elem['href']
+                    name = elem.get_text().strip()
+
+                    # Clean up the URL
+                    if href.startswith("https://aonprd.com/"):
+                        full_url = href
+                    else:
+                        full_url = "https://aonprd.com/" + href
+
+                    # URL encode the monster name part
+                    if "=" in href:
+                        base_url, monster_param = href.split("=", 1)
+                        encoded_param = quote(monster_param, safe='/()')
+                        full_url = f"https://aonprd.com/{base_url}={encoded_param}"
+
+                    if name and full_url:
+                        self.monster_list.append((name, full_url))
+
+            except requests.exceptions.RequestException as e:
+                print(f"Error downloading from {url}: {e}")
+                traceback.print_exc()
+                continue
+            except Exception as e:
+                print(f"Error parsing {url}: {e}")
+                traceback.print_exc()
+                continue
+
+        # Remove duplicates and sort
+        seen = set()
+        unique_monsters = []
+        for name, url in self.monster_list:
+            if (name, url) not in seen:
+                seen.add((name, url))
+                unique_monsters.append((name, url))
+
+        self.monster_list = sorted(unique_monsters, key=lambda x: x[0])
+
+        print(f"Successfully downloaded {len(self.monster_list)} monsters")
         self._save_monster_list()
 
     def _save_monster_list(self):
@@ -68,15 +117,20 @@ class MonsterListDownloader:
         with open(self.monster_list_path, 'w') as f:
             json.dump(serializable_list, f)
 
-    def get_available_monsters(self) -> List[tuple]:
+    def get_available_monsters(self, force_refresh: bool = False) -> List[tuple]:
         """Return list of available monsters as (name, url) tuples"""
-        if not self.monster_list_path.exists():
+        if force_refresh or not self.monster_list_path.exists():
             self.download_monster_list()
         else:
             # Load from cache and convert back to tuples
             with open(self.monster_list_path, 'r') as f:
                 cached_data = json.load(f)
                 self.monster_list = [(item["name"], item["url"]) for item in cached_data]
+        return self.monster_list
+
+    def force_refresh(self):
+        """Force refresh the monster list from source"""
+        self.download_monster_list()
         return self.monster_list
 
 class MonsterDownloader:
