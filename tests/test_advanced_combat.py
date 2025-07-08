@@ -153,37 +153,40 @@ class TestAdvancedCombatMechanics(unittest.TestCase):
         # A more robust test would mock positions.
 
         original_hp_c1 = self.combatant1.current_hp
-        random.seed(50) # Control rolls for AoO and the ranged attack
-        # C1 (attacker) uses shortbow (index 1) against C2 (target)
-        self.action_handler.take_attack_action(self.combatant1, self.combatant2, 1)
+        # Mock random rolls to ensure AoO hits and deals damage
+        with unittest.mock.patch('random.randint') as mock_randint:
+            # First call to randint is for the AoO attack roll (make it a hit)
+            # Second call to randint is for the AoO damage roll (make it deal damage)
+            # Subsequent calls are for the ranged attack itself (make it hit and deal damage)
+            mock_randint.side_effect = [20, 5, 20, 5] # AoO Attack Roll, AoO Damage Roll, Ranged Attack Roll, Ranged Damage Roll
+            # C1 (attacker) uses shortbow (index 1) against C2 (target)
+            self.action_handler.take_attack_action(self.combatant1, self.combatant2, 1)
 
         # Check if C1 took damage from an AoO from C2
-        # This requires C2's AoO to hit and deal damage.
-        # The log will show "Bob gets an AoO against Alice!"
-        # And then "Bob attacks Alice with Scimitar"
-        # Let's check the log or C1's HP
         self.assertLess(self.combatant1.current_hp, original_hp_c1, "Combatant1 should have taken damage from AoO")
-        self.assertIn(f"{self.combatant2.name} gets an AoO against {self.combatant1.name}!", self.engine.log.get_full_log())
+        self.assertIn(f"{self.combatant2.name} gets an Attack of Opportunity against {self.combatant1.name}!", self.engine.log.get_full_log())
 
 
     def test_aoo_combat_reflexes(self):
         self._set_current_turn(self.combatant1.name)
         self.combatant2.feats.append("Combat Reflexes")
+        self.combatant2.feats.append("Combat Reflexes")
         self.combatant2.ability_scores.dexterity = 14 # Dex mod +2, so 1 (base) + 2 = 3 AoOs
         self.combatant2.aoo_made_this_round = 0
         self.combatant2.is_flat_footed = False
 
-        self.assertTrue(self.engine.can_make_aoo(self.combatant2))
-        self.engine.trigger_attacks_of_opportunity(self.combatant1, "provoking action 1") # Simulates C2 making 1 AoO
-        self.assertEqual(self.combatant2.aoo_made_this_round, 1)
+        # Simulate provoking actions and check AoO count
+        self.engine.trigger_attacks_of_opportunity(self.combatant1, "provoking action 1")
+        self.assertEqual(self.combatant2.aoo_made_this_round, 1, "Combatant 2 should have made 1 AoO")
 
-        self.assertTrue(self.engine.can_make_aoo(self.combatant2))
-        self.engine.trigger_attacks_of_opportunity(self.combatant1, "provoking action 2") # C2 makes 2nd AoO
-        self.assertEqual(self.combatant2.aoo_made_this_round, 2)
+        self.engine.trigger_attacks_of_opportunity(self.combatant1, "provoking action 2")
+        self.assertEqual(self.combatant2.aoo_made_this_round, 2, "Combatant 2 should have made 2 AoOs")
 
-        self.assertTrue(self.engine.can_make_aoo(self.combatant2))
-        self.engine.trigger_attacks_of_opportunity(self.combatant1, "provoking action 3") # C2 makes 3rd AoO
-        self.assertEqual(self.combatant2.aoo_made_this_round, 3)
+        self.engine.trigger_attacks_of_opportunity(self.combatant1, "provoking action 3")
+        self.assertEqual(self.combatant2.aoo_made_this_round, 3, "Combatant 2 should have made 3 AoOs")
+
+        # Should not be able to make more AoOs
+        self.assertFalse(self.engine.can_make_aoo(self.combatant2), "Combatant 2 should not be able to make more AoOs")
 
         self.assertFalse(self.engine.can_make_aoo(self.combatant2)) # Maxed out
 

@@ -327,17 +327,10 @@ class CombatEngine:
 
         max_aoos = 1
         if "Combat Reflexes" in combatant.feats:
-            # Dex modifier can be 0 or negative, so ensure at least 1 if feat taken.
-            # However, Pathfinder rules: "A character with this feat can make one additional attack of opportunity per round for each point of Dexterity bonus she possesses."
-            # This implies the bonus is *added* to the default 1.
-            # The original code was `max_aoos += combatant.ability_scores.get_modifier("dexterity")`
-            # This means if Dex mod is negative, it would reduce.
-            # Correct interpretation: 1 (base) + Dex_bonus (if positive from Combat Reflexes).
-            # Let's stick to original interpretation first:
             dex_mod = combatant.ability_scores.get_modifier("dexterity")
-            max_aoos += dex_mod # This means if dex_mod is <0, it reduces. If 0, no change.
-            if max_aoos < 1 and "Combat Reflexes" in combatant.feats : max_aoos = 1 # Ensure at least one if feat is present, even with neg dex
-            elif max_aoos < 0 : max_aoos = 0 # Cannot have negative AoOs
+            max_aoos += dex_mod
+            if max_aoos < 1 and "Combat Reflexes" in combatant.feats : max_aoos = 1
+            elif max_aoos < 0 : max_aoos = 0
 
         return combatant.aoo_made_this_round < max_aoos
 
@@ -372,6 +365,7 @@ class CombatEngine:
                 # A real system might allow choice or use unarmed if no weapon.
                 aoo_attack_to_use = None
                 for att in potential_attacker.attacks:
+                    print(f"    Checking attack: {att.name}, type: {att.attack_type}, reach: {att.reach}")
                     if att.attack_type in [AttackType.MELEE, AttackType.NATURAL] and att.reach > 0:
                         aoo_attack_to_use = att
                         break
@@ -381,14 +375,16 @@ class CombatEngine:
                     # This is a simplification. Unarmed strikes have specific rules.
                     # For now, if no weapon, log and skip.
                     self.log.add_entry(f"  {potential_attacker.name} could make an AoO but has no suitable melee/natural attack listed.")
+                    print(f"  {potential_attacker.name} has no suitable AoO attack. Skipping.")
                     continue
 
 
                 self.log.add_entry(f"  {potential_attacker.name} gets an Attack of Opportunity against {provoking_combatant.name} with {aoo_attack_to_use.name}!")
-
+                print(f"Attempting to increment aoo_made_this_round for {potential_attacker.name}")
                 # Make the attack. AoOs are single attacks.
                 attack_outcome = self.make_attack(potential_attacker, provoking_combatant, aoo_attack_to_use, is_aoo=True)
                 potential_attacker.aoo_made_this_round += 1
+                self.log.add_entry(f"  {potential_attacker.name} has made {potential_attacker.aoo_made_this_round} AoOs this round.")
 
                 # If the provoking combatant is downed by the AoO, their action is often interrupted.
                 if provoking_combatant.is_dead() or \

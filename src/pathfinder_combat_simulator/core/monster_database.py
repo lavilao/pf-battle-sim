@@ -9,7 +9,7 @@ class MonsterDatabase:
     Implements Part 1.2 of the specification
     """
 
-    def __init__(self, database_path: str = "monster_data"):
+    def __init__(self, database_path: str = "/home/lavilao570/pf-battle-sim/data"):
         self.database_path = database_path
         # It's good practice to ensure the path is absolute or clearly relative to a known location.
         # For now, assuming it's relative to where the script is run or a predefined base.
