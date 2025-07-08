@@ -336,21 +336,21 @@ class TestEnhancedMonsterDatabase(unittest.TestCase):
         # EnhancedMonsterDatabase is now imported at the module level
         
         # Set up mock to return a monster
-        mock_monster = Combatant("Downloaded Monster")
+        mock_monster = Combatant("Solar")
         mock_monster.max_hp = 25
         mock_get_monster.return_value = mock_monster
         
         db = EnhancedMonsterDatabase(self.test_dir)
         
         # Try to load a monster that doesn't exist locally
-        monster = db.load_monster("Downloaded Monster")
+        monster = db.load_monster("Solar")
         
         self.assertIsNotNone(monster)
-        self.assertEqual(monster.name, "Downloaded Monster")
+        self.assertEqual(monster.name, "Solar")
         self.assertEqual(monster.max_hp, 25)
         
         # Verify the download was attempted
-        mock_get_monster.assert_called_once_with("Downloaded Monster")
+        mock_get_monster.assert_called_once_with("Solar")
     
     def test_enhanced_load_monster_local_cache(self):
         """Test that local monsters are loaded without downloading"""
