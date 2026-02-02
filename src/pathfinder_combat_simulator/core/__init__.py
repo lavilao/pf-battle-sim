@@ -4,7 +4,7 @@
 # e.g., from pathfinder_combat_simulator.core import Combatant
 # instead of from pathfinder_combat_simulator.core.combatant import Combatant
 
-from .enums import ActionType, AttackType, DamageType, ACType
+from .enums import ActionType, AttackType, DamageType, ACType, ConditionType
 from .attack import Attack
 from .ability_scores import AbilityScores
 from .armor_class import ArmorClass
@@ -15,10 +15,18 @@ from .combat_log import CombatLog
 from .attack_result import AttackResult
 from .combat_engine import CombatEngine
 from .action_handler import ActionHandler
+from .attacks_of_opportunity import (
+    AttacksOfOpportunitySystem,
+    AttackOfOpportunity,
+    AoOState,
+    AoOTriggerType,
+    AoOResult
+)
+from .positioning import Position, Size, Facing, MovementType, CombatantPosition
 from .utils import roll_dice
 
 __all__ = [
-    "ActionType", "AttackType", "DamageType", "ACType",
+    "ActionType", "AttackType", "DamageType", "ACType", "ConditionType",
     "Attack",
     "AbilityScores",
     "ArmorClass",
@@ -29,5 +37,11 @@ __all__ = [
     "AttackResult",
     "CombatEngine",
     "ActionHandler",
+    "AttacksOfOpportunitySystem",
+    "AttackOfOpportunity",
+    "AoOState",
+    "AoOTriggerType",
+    "AoOResult",
+    "Position", "Size", "Facing", "MovementType", "CombatantPosition",
     "roll_dice",
 ]
