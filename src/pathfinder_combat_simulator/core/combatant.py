@@ -2,11 +2,12 @@ import random
 from dataclasses import dataclass, field # Added dataclass here
 from typing import Dict, List, Optional, Any, Tuple
 
-from .enums import AttackType, DamageType # Added DamageType
+from .enums import AttackType, DamageType
 from .ability_scores import AbilityScores
 from .armor_class import ArmorClass
 from .saving_throws import SavingThrows
 from .attack import Attack
+from .positioning import CombatantPosition
 
 
 @dataclass # Added this decorator as Combatant seems to use it implicitly via other dataclasses
@@ -93,6 +94,7 @@ class Combatant:
         # Combat State
         self.conditions: set = set()
         self.is_flat_footed = True
+        self.position_info: Optional[CombatantPosition] = None
         self.has_acted_this_combat = False
         self.aoo_made_this_round = 0
         self.has_moved_this_turn = False # For 5-foot step tracking
