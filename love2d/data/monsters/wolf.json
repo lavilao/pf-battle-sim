@@ -1,0 +1,74 @@
+{
+  "name": "Wolf",
+  "is_pc": false,
+  "max_hp": 13,
+  "ability_scores": {
+    "strength": 13,
+    "dexterity": 15,
+    "constitution": 15,
+    "intelligence": 2,
+    "wisdom": 12,
+    "charisma": 6
+  },
+  "base_attack_bonus": 1,
+  "armor_class": {
+    "armor_bonus": 0,
+    "shield_bonus": 0,
+    "natural_armor_bonus": 2,
+    "deflection_bonus": 0,
+    "dodge_bonus": 0,
+    "size_modifier": 0,
+    "max_dex_bonus_from_armor": null
+  },
+  "saving_throws": {
+    "fortitude_base": 3,
+    "reflex_base": 3,
+    "will_base": 0
+  },
+  "base_speed": 50,
+  "size": "Medium",
+  "creature_type": "Animal",
+  "subtypes": [],
+  "alignment": "True Neutral",
+  "skills": {
+    "Perception": 8,
+    "Stealth": 6,
+    "Survival": 1
+  },
+  "feats": [
+    "Weapon Focus (Bite)"
+  ],
+  "attacks": [
+    {
+      "name": "Bite",
+      "damage_dice": "1d6",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x2",
+      "damage_type": "piercing",
+      "attack_type": "natural",
+      "reach": 5,
+      "associated_ability_for_attack": "str",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": true,
+      "special_qualities": [
+        "trip"
+      ],
+      "enhancement_bonus": 0,
+      "two_handed": false,
+      "off_hand": false,
+      "damaged": false
+    }
+  ],
+  "damage_reduction": null,
+  "spell_resistance": 0,
+  "energy_resistances": {},
+  "energy_immunities": [],
+  "energy_vulnerabilities": [],
+  "notes": "Trip on bite: a successful bite can knock the target prone (not modeled). Hunts in packs.",
+  "color": [
+    0.52,
+    0.55,
+    0.6
+  ],
+  "token_label": "W"
+}

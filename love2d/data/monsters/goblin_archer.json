@@ -1,0 +1,73 @@
+{
+  "name": "Goblin Archer",
+  "is_pc": false,
+  "max_hp": 6,
+  "ability_scores": {
+    "strength": 11,
+    "dexterity": 16,
+    "constitution": 12,
+    "intelligence": 10,
+    "wisdom": 9,
+    "charisma": 6
+  },
+  "base_attack_bonus": 1,
+  "armor_class": {
+    "armor_bonus": 2,
+    "shield_bonus": 0,
+    "natural_armor_bonus": 0,
+    "deflection_bonus": 0,
+    "dodge_bonus": 0,
+    "size_modifier": 0,
+    "max_dex_bonus_from_armor": null
+  },
+  "saving_throws": {
+    "fortitude_base": 1,
+    "reflex_base": 2,
+    "will_base": -1
+  },
+  "base_speed": 30,
+  "size": "Small",
+  "creature_type": "Humanoid",
+  "subtypes": [
+    "Goblinoid"
+  ],
+  "alignment": "Neutral Evil",
+  "skills": {
+    "Perception": 2,
+    "Stealth": 7
+  },
+  "feats": [
+    "Point Blank Shot"
+  ],
+  "attacks": [
+    {
+      "name": "Shortbow",
+      "damage_dice": "1d4",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x3",
+      "damage_type": "piercing",
+      "attack_type": "ranged",
+      "reach": 5,
+      "associated_ability_for_attack": "dex",
+      "associated_ability_for_damage": "none",
+      "is_primary_natural_attack": false,
+      "special_qualities": [],
+      "enhancement_bonus": 0,
+      "two_handed": false,
+      "off_hand": false,
+      "damaged": false
+    }
+  ],
+  "damage_reduction": null,
+  "spell_resistance": 0,
+  "energy_resistances": {},
+  "energy_immunities": [],
+  "energy_vulnerabilities": [],
+  "notes": "Point Blank Shot: +1 attack and damage within 30 ft (range is not modeled). Cool-eyed goblin skirmisher.",
+  "color": [
+    0.56,
+    0.78,
+    0.3
+  ],
+  "token_label": "A"
+}

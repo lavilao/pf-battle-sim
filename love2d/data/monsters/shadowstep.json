@@ -1,0 +1,94 @@
+{
+  "name": "Shadowstep",
+  "is_pc": true,
+  "max_hp": 12,
+  "ability_scores": {
+    "strength": 12,
+    "dexterity": 18,
+    "constitution": 13,
+    "intelligence": 14,
+    "wisdom": 10,
+    "charisma": 12
+  },
+  "base_attack_bonus": 1,
+  "armor_class": {
+    "armor_bonus": 3,
+    "shield_bonus": 0,
+    "natural_armor_bonus": 0,
+    "deflection_bonus": 0,
+    "dodge_bonus": 0,
+    "size_modifier": 0,
+    "max_dex_bonus_from_armor": null
+  },
+  "saving_throws": {
+    "fortitude_base": 0,
+    "reflex_base": 3,
+    "will_base": 0
+  },
+  "base_speed": 30,
+  "size": "Medium",
+  "creature_type": "Humanoid",
+  "subtypes": [
+    "Human"
+  ],
+  "alignment": "Chaotic Good",
+  "skills": {
+    "Acrobatics": 8,
+    "Disable Device": 7,
+    "Heal": 1,
+    "Perception": 5,
+    "Stealth": 8
+  },
+  "feats": [
+    "Weapon Finesse",
+    "Combat Reflexes"
+  ],
+  "attacks": [
+    {
+      "name": "Rapier",
+      "damage_dice": "1d6",
+      "critical_threat_range": "18-20",
+      "critical_multiplier": "x2",
+      "damage_type": "piercing",
+      "attack_type": "melee",
+      "reach": 5,
+      "associated_ability_for_attack": "dex",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": false,
+      "special_qualities": [],
+      "enhancement_bonus": 0,
+      "two_handed": false,
+      "off_hand": false,
+      "damaged": false
+    },
+    {
+      "name": "Shortbow",
+      "damage_dice": "1d6",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x3",
+      "damage_type": "piercing",
+      "attack_type": "ranged",
+      "reach": 5,
+      "associated_ability_for_attack": "dex",
+      "associated_ability_for_damage": "none",
+      "is_primary_natural_attack": false,
+      "special_qualities": [],
+      "enhancement_bonus": 0,
+      "two_handed": false,
+      "off_hand": false,
+      "damaged": false
+    }
+  ],
+  "damage_reduction": null,
+  "spell_resistance": 0,
+  "energy_resistances": {},
+  "energy_immunities": [],
+  "energy_vulnerabilities": [],
+  "notes": "Scout and infiltrator; prefers ambushes, high ground, and a quick exit.",
+  "color": [
+    0.58,
+    0.36,
+    0.76
+  ],
+  "token_label": "S"
+}

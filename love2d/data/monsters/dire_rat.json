@@ -1,0 +1,74 @@
+{
+  "name": "Dire Rat",
+  "is_pc": false,
+  "max_hp": 16,
+  "ability_scores": {
+    "strength": 13,
+    "dexterity": 16,
+    "constitution": 13,
+    "intelligence": 2,
+    "wisdom": 13,
+    "charisma": 4
+  },
+  "base_attack_bonus": 1,
+  "armor_class": {
+    "armor_bonus": 0,
+    "shield_bonus": 0,
+    "natural_armor_bonus": 1,
+    "deflection_bonus": 0,
+    "dodge_bonus": 0,
+    "size_modifier": 0,
+    "max_dex_bonus_from_armor": null
+  },
+  "saving_throws": {
+    "fortitude_base": 2,
+    "reflex_base": 2,
+    "will_base": 0
+  },
+  "base_speed": 40,
+  "size": "Small",
+  "creature_type": "Animal",
+  "subtypes": [],
+  "alignment": "True Neutral",
+  "skills": {
+    "Perception": 4,
+    "Stealth": 8,
+    "Swim": 4
+  },
+  "feats": [
+    "Weapon Finesse"
+  ],
+  "attacks": [
+    {
+      "name": "Bite",
+      "damage_dice": "1d4",
+      "critical_threat_range": "20",
+      "critical_multiplier": "x2",
+      "damage_type": "piercing",
+      "attack_type": "natural",
+      "reach": 5,
+      "associated_ability_for_attack": "str",
+      "associated_ability_for_damage": "str",
+      "is_primary_natural_attack": true,
+      "special_qualities": [
+        "disease (filth fever)"
+      ],
+      "enhancement_bonus": 0,
+      "two_handed": false,
+      "off_hand": false,
+      "damaged": false
+    }
+  ],
+  "damage_reduction": null,
+  "spell_resistance": 0,
+  "energy_resistances": {},
+  "energy_immunities": [],
+  "energy_vulnerabilities": [],
+  "notes": "Filth fever: the bite transmits disease (not modeled). Skulks through refuse and sewers.",
+  "color": [
+    0.34,
+    0.27,
+    0.22
+  ],
+  "token_label": "D"
+}
